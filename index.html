@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="google-site-verification" content="XVoOHobZLMEv1gjql6eKQEKkWTCYlQdgvLxKpLx2WF4" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Qvmpxt</title>
 <meta name="theme-color" content="#03050C">
@@ -141,6 +142,49 @@ iframe.pdfp{width:100%;height:240px;border:0;border-radius:12px;margin-top:10px;
 .wl{list-style:none;padding:0;margin:10px 0;display:grid;gap:10px}.wl li{display:flex;gap:10px;align-items:flex-start}.wl svg{color:var(--cy);margin-top:3px}
 .sh .cta{margin-top:14px}
 [id^=t-]{scroll-margin-top:76px}
+/* v3 clarity: solid surfaces, crisp text, no white corners */
+html{background:#03050C;color-scheme:dark;-webkit-text-size-adjust:100%}
+*{-webkit-tap-highlight-color:transparent;scrollbar-color:rgba(0,240,255,.4) transparent;scrollbar-width:thin}
+body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body:before{inset:0}
+button,input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]){-webkit-appearance:none;appearance:none}
+select option{background:#0b1224;color:#f1f5f9}
+input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 1000px #0b1224 inset!important;box-shadow:0 0 0 1000px #0b1224 inset!important;-webkit-text-fill-color:#f1f5f9!important;caret-color:#f1f5f9;border-radius:12px}
+nav,footer{background:#03050C}
+.au{background:radial-gradient(700px 500px at 50% 35%,rgba(99,102,241,.28),transparent),#03050C}
+.gl{background:#080c18;-webkit-backdrop-filter:none;backdrop-filter:none;border:1px solid rgba(0,240,255,.45)}
+.gl:before,.lgs{filter:none}
+.card{background:#0a1022;border-color:rgba(99,102,241,.38)}
+.card:hover{border-color:rgba(0,240,255,.5)}
+select,input,textarea,.fl input{background:#0b1224;border-color:rgba(148,163,184,.3)}
+.fl input:hover{background:#0e1730}.fl input:focus{background:#0b1a2e}
+.tab{background:#0b1224;border-color:rgba(148,163,184,.2)}
+.soc .btn{background:#0b1224;border:1px solid rgba(148,163,184,.32);border-radius:12px;color:var(--tx)}
+.soc .btn:hover{border-color:var(--cy);background:#0e1a30}
+.soc .neon{animation:none;border-color:var(--cy);color:var(--cy);background:#07182a;box-shadow:0 0 12px rgba(0,240,255,.4)}
+.cta{border-radius:12px;filter:none;box-shadow:0 8px 24px rgba(0,240,255,.32)}
+.cta:hover,.pri:hover{filter:none;transform:translateY(-1px);box-shadow:0 10px 30px rgba(0,240,255,.5)}.cta:active{transform:scale(.98)}
+#toast{background:#0f172a;border:1px solid rgba(0,240,255,.4)}
+.o{background:#060a16}
+.fp{background:#06202b}.dots{background:#0b1224}
+/* modals and drawer: flex-centred (no fractional transforms), solid, clipped corners */
+#mdl{display:flex;align-items:center;justify-content:center}
+.ov{background:rgba(2,4,10,.8)}
+.sh{position:relative;left:auto;top:auto;transform:none;margin:0;padding:0;overflow:hidden;display:flex;flex-direction:column;background:#0a1022;border:1px solid rgba(0,240,255,.45);animation:mf .2s ease}
+.sb{flex:1 1 auto;min-height:0;overflow:auto;padding:20px;overscroll-behavior:contain}
+.sh.dr{position:absolute;right:0;top:0;bottom:0;left:auto;margin:0;background:#080d1c;-webkit-backdrop-filter:none;backdrop-filter:none;border-radius:24px 0 0 24px;animation:ms .24s ease}
+.sh.dr .sb{padding-top:calc(16px + env(safe-area-inset-top));padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+@keyframes mf{from{opacity:0}}
+@media(max-width:560px){.sh:not(.dr){align-self:flex-end;border-radius:24px 24px 0 0;border-bottom:0;animation:mb .24s ease}.sh:not(.dr) .sb{padding-bottom:calc(20px + env(safe-area-inset-bottom))}}
+.dli:hover,.dli.on{background:#101a33}
+.ac,.ft{background:#0b1224}
+.ac b,.ac small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ac>span:last-child{min-width:0}
+.orow{display:flex;gap:6px;align-items:center}.orow .ac{flex:1;min-width:0}
+.u3>div{background:#0b1224;border:1px solid rgba(148,163,184,.18)}
+.dsep{height:1px;background:rgba(148,163,184,.2);margin:10px 4px}
+.dme{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid rgba(0,240,255,.3);border-radius:14px;background:#0b1224;margin-bottom:12px}
+.dme b{display:block;line-height:1.2}.dme small{color:var(--mu);word-break:break-all}
+details>summary{list-style:none}details>summary::-webkit-details-marker{display:none}
 </style>
 </head>
 <body>
@@ -193,11 +237,11 @@ const qrMatrix=(text)=>{
  return best};
 const qrSvg=(text,px=180)=>{const m=qrMatrix(text),n=m.length,q=4,s=n+q*2;let d="";for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(m[y][x])d+=`M${x+q} ${y+q}h1v1h-1z`;
  return`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${s} ${s}" width="${px}" height="${px}" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="${s}" height="${s}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`};
-const BRAND="Qvmpxt",FOUNDER="M Maruf Chowdhury",STRIPE_LINKS={starter:"",growth:"",enterprise:"",starter_y:"",growth_y:"",enterprise_y:""}; // paste Stripe Payment Links to go live; empty = demo checkout
+const BRAND="Qvmpxt",FOUNDER="M Maruf Chowdhury",STRIPE_LINKS={starter:"",growth:"https://buy.stripe.com/test_3cIdRb1sQ3EB7UDfLse7m02",enterprise:"",starter_y:"",growth_y:"",enterprise_y:""}; // paste Stripe Payment Links to go live; empty = demo checkout
 const PLANS=[["starter",9,"Starter",300],["growth",29,"Growth",2000],["enterprise",99,"Enterprise",20000]];
 // price table [monthly, yearly] per currency
 const PR={starter:{usd:[9,89],bdt:[990,9900],btc:[0.00009,0.0009]},growth:{usd:[29,289],bdt:[2990,28900],btc:[0.0003,0.0028]},enterprise:{usd:[99,989],bdt:[9900,98900],btc:[0.001,0.01]}};
-const FEAT={starter:["300 Agent Runs","Basic Compliance Audits","Standard Support"],growth:["2,000 Agent Runs","E2EE Security","Visual Flow Builder","Multi-tenant Team Workspace"],enterprise:["20,000+ Runs","Unlimited Team RBAC","Dedicated API Gateway","Custom Webhooks"]};
+const FEAT={starter:["Everything in Free","300 agent runs / month","Priority run queue","5 team seats with RBAC","3 API keys","Webhook for run events"],growth:["Everything in Starter","2,000 agent runs / month","15 team seats with RBAC","10 API keys"],enterprise:["Everything in Growth","20,000 agent runs / month","Unlimited team seats with RBAC","Unlimited API keys"]};
 const MOB={bkash:["bKash"],nagad:["Nagad"],rocket:["Rocket"]},MOB_NUM={bkash:"",nagad:"",rocket:""}; // put your merchant numbers here to show them at checkout
 const CY={card:"usd",btc:"btc",mob:"bdt"},COMM=15;
 const $=(s,e=document)=>e.querySelector(s),$$=(s,e=document)=>[...e.querySelectorAll(s)];
@@ -274,9 +318,8 @@ const seed=()=>({agents:[{id:"a1",name:"Market Researcher",task:"Find 3 trends a
  {id:"p2",by:"Rafi Ahmed",type:"quote",t:"Brand kit · $480",x:"A 60-second quote link for a design package.",data:{title:"Brand kit",client:"Studio Nine",item:"Logo + palette",qty:1,price:480},likes:["x3"],cm:[],forks:1}],
  team:[],keys:[],hooks:[],logs:[],market:[{id:"m1",by:"Ava Chen",email:"seed@qvmpxt.demo",name:"Lead Qualifier Pro",task:"Score the lead 1-10 and draft a first reply.",buy:29,rent:5,sales:0},{id:"m2",by:"Rafi Ahmed",email:"seed@qvmpxt.demo",name:"Contract Risk Reader",task:"List risky clauses and suggest safer wording.",buy:49,rent:9,sales:0},{id:"m3",by:"Noor Hasan",email:"seed@qvmpxt.demo",name:"Bangla Support Replier",task:"Draft a polite support reply in Bangla and English.",buy:19,rent:0,sales:0}],orders:[],txids:[],cycle:"m",plan:"free",used:0,tokens:0,paid:[],e2ee:false});
 let U=ld("qv_u",{}),D=Object.assign(seed(),ld("qv_d",{}));
-const save=()=>sv("qv_d",D);
+const save=()=>{try{if(S.u){S.u.plan=D.plan;S.u.cycle=D.cycle;S.u.used=D.used;S.u.tokens=D.tokens;S.u.period=D.period||"";sv("qv_u",U)}}catch{}sv("qv_d",D)};
 const S={lang:ld("qv_l",detect()),u:null,role:"Admin",sel:"growth",method:"card",tax:0,rate:100000,cycle:"m",mob:"bkash",keys:{},prov:"OpenAI",flow:{n:[],e:[],sel:null},timers:[],evt:null,am:"up",vlog:[],az:null};
-try{const s=ld("qv_s",null);if(s&&JSON.parse(atob(s.tok.split(".")[0])).x>Date.now()&&U[s.e])S.u=U[s.e]}catch{}
 const hasLang=c=>L8.includes(c)||!!X[c]||!!PK[c];
 const t=k=>{const a=L[k];for(const c of[S.lang,String(S.lang).split("-")[0]]){const v=(PK[c]&&PK[c][k])||(X[c]&&X[c][k])||(a&&L8.includes(c)&&a[L8.indexOf(c)]);if(v)return esc(v)}return esc(a?a[0]:k)};
 const loadPack=l=>{if(!/^https?:$/.test(location.protocol)||hasLang(l))return;fetch("/api/i18n/"+encodeURIComponent(l)).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.strings&&S.lang===l){PK[l]=j.strings;sv("qv_packs",PK);route()}}).catch(()=>{})};
@@ -305,9 +348,9 @@ function pdf(lines){const e=s=>s.replace(/[^\x20-\x7E]/g,"?").replace(/[\\()]/g,
 // ---------- embedded mock API (no network) ----------
 const lim=()=>({free:50,starter:300,growth:2000,enterprise:20000})[D.plan]||50;
 const API={
- async run(id,input){await sleep(400+Math.random()*600);const a=D.agents.find(x=>x.id===id);if(!a)throw Error("Agent not found");if(a.rentUntil&&Date.now()>a.rentUntil)throw Error("Rental expired. Rent it again in the Marketplace.");if(!input.trim())throw Error("Type an input first");if(D.used>=lim())throw Error("Run limit reached. Upgrade in Billing.");
+ async run(id,input){rollUse();await sleep(D.plan==="free"?400+Math.random()*600:120);const a=D.agents.find(x=>x.id===id);if(!a)throw Error("Agent not found");if(a.rentUntil&&Date.now()>a.rentUntil)throw Error("Rental expired. Rent it again in the Marketplace.");if(!input.trim())throw Error("Type an input first");if(D.used>=lim())throw Error("Run limit reached. Upgrade in Billing.");
   const tk=Math.ceil((a.task.length+input.length)/4)+120+(Math.random()*80|0);D.used++;D.tokens+=tk;save();
-  return{tokens:tk,out:`${a.name} via ${S.keys[S.prov]?S.prov+" (key connected, simulated call)":"built-in simulator"}\n\nInput: "${input.slice(0,120)}"\n\n1) Parsed the request\n2) Applied the task: ${a.task}\n3) Result: a short structured answer is ready to send.`}},
+  return hrun(a,input,{tokens:tk,out:`${a.name} via ${S.keys[S.prov]?S.prov+" (key connected, simulated call)":"built-in simulator"}\n\nInput: "${input.slice(0,120)}"\n\n1) Parsed the request\n2) Applied the task: ${a.task}\n3) Result: a short structured answer is ready to send.`})},
  async audit(rows){await sleep(300);if(!Array.isArray(rows)||!rows.length)throw Error("Provide a JSON array with at least one record");
   const am=rows.map(x=>+x.amount||0),mean=am.reduce((a,b)=>a+b,0)/am.length,sd=Math.sqrt(am.reduce((a,b)=>a+(b-mean)**2,0)/am.length)||1,seen=new Set(),f=[];
   rows.forEach((x,i)=>{const add=(rule,sev,d)=>f.push({n:i+1,id:x.id,rule,sev,d}),a=+x.amount||0;
@@ -345,6 +388,7 @@ const payBody=()=>{const c=P1(),cy=c.cy,ci=S.cycle==="y",sk=S.sel+(ci?"_y":""),b
  :S.method==="btc"?`${inp("bw","Bitcoin address or Lightning invoice")}<p class="mu" id="bx"></p><div id="bq" style="background:#fff;padding:10px;border-radius:12px;display:inline-block;min-width:60px" hidden></div><div class="r"><button class="btn c4" data-a="btcpaid">${I("CheckCircle")}Confirm payment received (demo)</button><button class="btn" data-a="btccp">${I("Wallet")}Copy invoice URI</button></div>`
  :`<div class="r">${Object.keys(MOB).map(p=>`<button class="btn ${S.mob===p?"on":""}" data-a="mobp" data-id="${p}">${MOB[p][0]}</button>`).join("")}</div><p class="mu">${MOB_NUM[S.mob]?`Send ${fmtC("bdt",c.tot)} to <b>${esc(MOB_NUM[S.mob])}</b> with ${MOB[S.mob][0]}, then paste the TxID below.`:`Demo mode: no merchant number is configured. Add yours to MOB_NUM in the code to go live.`}</p>${inp("tx","Transaction ID (TxID)")}<p class="mu" id="txs"></p><button class="btn pri" data-a="mobpay">${I("CheckCircle")}Confirm payment (format check only)</button>`}</div>`};
 const pg={
+me:()=>meUI(),hist:()=>histUI(),
 home:()=>`<section class="hero"><h1>${t("tag")}</h1><p>${t("sub")}</p><div class="r" style="max-width:420px"><button class="btn pri" data-go="agents">${I("Bot")}${t("agents")}</button><button class="btn" data-go="pay">${I("Wallet")}${t("pay")}</button></div></section>
  ${S.evt?`<div class="card c5 r" style="align-items:center;justify-content:space-between"><span>${I("Layout")} ${t("install")}</span><button class="btn pri" data-a="inst">${I("Zap")}${t("install")}</button></div>`:""}
  <div class="g">${VEC.map(v=>`<div class="card ${v[1]}"><div class="ic">${I(v[0])}</div><b>${t(v[2])}</b><p class="mu">${v[3]}</p><button class="btn" data-go="${v[2]}">${I("ChevronRight")}${t(v[2])}</button></div>`).join("")}</div>
@@ -372,12 +416,15 @@ market:()=>{const me=S.u.email,mine=D.orders.filter(o=>o.seller===me),sum=(a,k)=
  <h2>${I("Layers")} Listings</h2><div class="g">${D.market.map(i=>{const my=i.email===me;return`<div class="card c5"><b>${esc(i.name)}</b><p class="mu" style="margin:4px 0">${esc(i.task)}</p><span class="mu">by ${esc(i.by)} · ${i.sales} sold</span><div class="r">${i.buy>0?`<button class="btn pri" data-a="buy" data-id="${i.id}" data-mode="buy" ${my?"disabled":""}>Buy ${money(i.buy)}</button>`:""}${i.rent>0?`<button class="btn" data-a="buy" data-id="${i.id}" data-mode="rent" ${my?"disabled":""}>Rent ${money(i.rent)} / 30 days</button>`:""}</div>${my?`<span class="tg low">Your listing</span>`:""}</div>`}).join("")||`<p class="mu">No listings yet.</p>`}</div>
  <p class="mu">Demo checkout: purchases are recorded in the ledger and copy the workflow into your workspace. No money moves until you connect a payout provider.</p>
  <h2>${I("FileText")} Order ledger</h2><div class="card c2 sc"><table><tr><th>Order</th><th>Item</th><th>Mode</th><th>Gross</th><th>Fee ${COMM}%</th><th>Seller net</th></tr>${D.orders.slice(0,30).map(o=>`<tr><td>${esc(o.id)}</td><td>${esc(o.item)}</td><td>${o.mode}</td><td>${money(o.gross)}</td><td>${money(o.fee)}</td><td>${money(o.net)}</td></tr>`).join("")||`<tr><td colspan="6" class="mu">No orders yet.</td></tr>`}</table></div>`},
-pay:()=>{const c=P1(),cy=c.cy,ci=S.cycle==="y"?1:0,sk=S.sel+(ci?"_y":""),btc=c.tot.toFixed(8);
+pay:()=>{const c=P1(),cy=c.cy,ci=S.cycle==="y"?1:0,cur=D.plan,paid=cur!=="free",last=D.paid[0],L=lim(),pc=Math.min(100,Math.round(D.used/L*100)),nxt=paid&&last?new Date(last.at+(last.cyc==="y"?366:31)*864e5).toLocaleDateString():"";
  return`<h2>${I("Wallet")} ${t("pay")} <span class="tg low">USD · BTC · BDT</span></h2>
+ <div class="card c2" style="margin-bottom:14px"><div class="r" style="align-items:center;margin:0"><div style="flex:2 1 220px"><span class="mu">Your subscription</span><div class="num" style="font-size:26px">${planName()} <span class="tg ${paid?"low":""}">${paid?"Active":"Free"}</span></div><span class="mu">${paid?`Billed ${D.cycle==="y"?"yearly":"monthly"}${nxt?`, next renewal around ${nxt}`:""}. Switch or downgrade whenever you like.`:"Upgrade whenever you are ready. Your data and history stay yours on every plan."}</span></div><div style="flex:1 1 170px"><span class="mu">Runs this month: ${D.used}/${L.toLocaleString()}</span><div class="pwt" style="margin-top:8px"><i style="width:${pc}%;background:linear-gradient(90deg,var(--in),var(--cy))"></i></div></div></div>
+ <div class="r"><button class="btn pri" data-a="plan" data-id="${paid?cur:"growth"}">${paid?"Renew or change cycle":"Upgrade plan"}</button>${paid?`<button class="btn c6" data-a="cancel">Downgrade to Free</button>`:""}</div></div>
  <div class="r" style="justify-content:center"><div class="tab" style="flex:0 1 380px;margin:0"><button class="btn ${ci?"":"on"}" data-a="cyc" data-id="m">Monthly</button><button class="btn ${ci?"on":""}" data-a="cyc" data-id="y">Yearly (Save up to ${Math.max(...PLANS.map(x=>savePct(x[0],"usd")))}%)</button></div></div>
- <div class="g" style="margin-top:12px">${PLANS.map(x=>{const id=x[0],on=S.sel===id;return`<button class="card c4" data-a="plan" data-id="${id}" style="text-align:start;cursor:pointer;position:relative;${on?"border-color:var(--bt)":""}">${id==="growth"?`<span class="tg medium" style="position:absolute;top:12px;inset-inline-end:12px">Most popular</span>`:""}<b>${x[2]}</b><span class="num" style="display:block">${fmtC(cy,PR[id][cy][ci])}<span class="mu" style="font-size:14px">/${ci?"yr":"mo"}</span></span>${ci?`<span class="tg low">Save ${savePct(id,cy)}% vs monthly</span>`:""}${FEAT[id].map(f=>`<span class="mu" style="display:block;margin-top:4px">✓ ${f}</span>`).join("")}</button>`}).join("")}</div>
+ <div class="g" style="margin-top:12px">${PLANS.map(x=>{const id=x[0],on=cur===id,up=rank(id)>rank(cur);return`<button class="card c4" data-a="plan" data-id="${id}" style="text-align:start;cursor:pointer;position:relative;${on?"border-color:var(--em)":""}">${on?`<span class="tg low" style="position:absolute;top:12px;inset-inline-end:12px">Current plan</span>`:id==="growth"?`<span class="tg medium" style="position:absolute;top:12px;inset-inline-end:12px">Most popular</span>`:""}<b>${x[2]}</b><span class="num" style="display:block">${fmtC(cy,PR[id][cy][ci])}<span class="mu" style="font-size:14px">/${ci?"yr":"mo"}</span></span>${ci?`<span class="tg low">Save ${savePct(id,cy)}% vs monthly</span>`:""}${FEAT[id].map(f=>`<span class="mu" style="display:block;margin-top:4px">✓ ${f}</span>`).join("")}<span style="display:block;margin-top:12px;color:var(--cy);font-weight:700">${on?"Renew or change cycle":up?"Upgrade":"Switch to this plan"} →</span></button>`}).join("")}</div>
  <p class="mu" style="text-align:center;margin-top:14px">Tap a plan to pay by card, Bitcoin or bKash / Nagad / Rocket.</p>
- <h2>${I("FileText")} Invoices</h2><div class="card c4 sc"><table><tr><th>No.</th><th>Plan</th><th>Total</th><th>Via</th><th></th></tr>${D.paid.map(v=>`<tr><td>${v.id}</td><td>${v.plan}${v.cyc==="y"?" (yearly)":""}</td><td>${fmtC(v.cur||"usd",v.tot)}</td><td>${esc(v.m)}</td><td><button class="btn" data-a="inv" data-id="${v.id}">${I("FileText")}PDF</button></td></tr>`).join("")||`<tr><td colspan="5" class="mu">No invoices yet.</td></tr>`}</table></div><p class="mu">Current plan: <b>${D.plan}</b> · Accepted: USD, Bitcoin and BDT.</p>`},
+ <h2>${I("Award")} Compare plans</h2>${cmpTable()}
+ <h2>${I("FileText")} Invoices</h2><div class="card c4 sc"><table><tr><th>No.</th><th>Plan</th><th>Total</th><th>Via</th><th></th></tr>${D.paid.map(v=>`<tr><td>${v.id}</td><td>${v.plan}${v.cyc==="y"?" (yearly)":""}</td><td>${fmtC(v.cur||"usd",v.tot)}</td><td>${esc(v.m)}</td><td><button class="btn" data-a="inv" data-id="${v.id}">${I("FileText")}PDF</button></td></tr>`).join("")||`<tr><td colspan="5" class="mu">No invoices yet.</td></tr>`}</table></div><p class="mu">Current plan: <b>${planName()}</b> · Accepted: USD, Bitcoin and BDT.</p>`},
 stats:()=>`<h2>${I("Activity")} ${t("stats")} <span class="tg low" id="bk" style="font-size:12px">backend: checking…</span></h2><div class="g"><div class="card c5" style="grid-column:1/-1"><b>${I("Users")} User growth</b><svg id="ch" viewBox="0 0 400 120" style="width:100%;height:150px"></svg></div>${[["API latency","ms","lt"],["Agent success","%","su"],["Uptime","%","up"]].map(m=>`<div class="card c1"><div class="mu">${m[0]}</div><div class="num" id="${m[2]}">–</div><span class="mu">${m[1]}</span></div>`).join("")}</div>
  <h2>${I("Code")} Developer console</h2><div class="g"><div class="card c1"><b>${I("Key")} API keys</b><div class="r"><button class="btn pri" data-a="gk">Generate key</button></div>${D.keys.map(k=>`<p class="mu" style="margin:6px 0"><code>${k.k}</code> <button class="btn" data-a="rk" data-id="${k.id}">Revoke</button></p>`).join("")||`<p class="mu">No keys yet.</p>`}</div>
  <div class="card c2"><b>${I("Share2")} Webhook endpoint</b>${inp("wh","https://example.com/hooks/qvmpxt","url",D.hooks[0]||"")}<div class="r"><button class="btn" data-a="wa">Save endpoint</button><button class="btn" data-a="wt">Send test event</button></div></div>
@@ -403,7 +450,7 @@ const pwStrength=p=>{if(!p)return{n:0,l:"",c:""};let s=0;if(p.length>=6)s++;if(p
 const SOC=[["google","Google","Google"],["github","GitHub","Github"],["pkl","Passkey","Fingerprint"]];
 const authUI=m=>`<div class="au"><div class="gl pg"><div class="hd">${LOGO(64,"la")}<b>${BRAND.toUpperCase()}</b><p class="pwr">Powered by <em>${BRAND} Enterprise Engine</em> · Sovereign AI &amp; Financial Ecosystem</p></div>
  <div class="tab" role="tablist"><button class="btn ${m==="up"?"on":""}" role="tab" aria-selected="${m==="up"}" data-a="am" data-id="up">${t("signup")}</button><button class="btn ${m==="in"?"on":""}" role="tab" aria-selected="${m==="in"}" data-a="am" data-id="in">${t("login")}</button></div>
- <div class="ocl">One-Click Authentication</div>
+ ${S.pre&&m==="in"?`<p class="mu" style="text-align:center;margin:0 0 10px">Welcome back. Please sign in to continue.</p>`:""}<div class="ocl">One-Click Authentication</div>
  <div class="soc">${SOC.map(s=>{const pk=s[0]==="pkl",lb=pk?"Sign in with Passkey / Biometric":"Continue with "+s[1];return`<button type="button" class="btn ${pk?"neon":""}" data-a="${pk?"pkl":"social"}" data-id="${s[0]}" aria-label="${lb}" title="${lb}">${I(s[2])}<span>${s[1]}</span></button>`}).join("")}</div>
  <div class="dv">or use your details</div>
  ${m==="up"?fld("an","Full name","text","","name"):""}${fld("ae","Email","email",S.pre||"","email")}${m==="up"?fld("ph","Phone number","tel","","tel"):""}${pwf("ap","Password",m==="up"?"new-password":"current-password")}
@@ -413,15 +460,11 @@ const authUI=m=>`<div class="au"><div class="gl pg"><div class="hd">${LOGO(64,"l
 
 // ---------- overlays: menu drawer, free-plan dashboard, welcome, account chooser, checkout ----------
 const MD=$("#mdl");
-const openM=(h,c="")=>{MD.innerHTML=`<div class="ov" data-a="shut"></div><div class="sh ${c}" role="dialog" aria-modal="true">${h}</div>`;MD.hidden=false;document.body.style.overflow="hidden";const x=$(".x",MD);if(x)x.focus({preventScroll:true})};
 const closeM=()=>{if(MD.hidden)return;MD.hidden=true;MD.innerHTML="";document.body.style.overflow=""};
 const go=(p,sc)=>{S.sc=sc||"";if((location.hash.slice(2)||"home")===p)route();else location.hash="#/"+p;scrollTo(0,0)};
 const xb=l=>`<button class="x" data-a="shut" aria-label="${l||"Close"}">${I("Close")}</button>`;
 const planName=()=>D.plan==="free"?"Free":D.plan[0].toUpperCase()+D.plan.slice(1);
-const ACC={google:[["Alex Morgan","alex.morgan@gmail.com"],["Sam Rivera","sam.rivera@gmail.com"]],github:[["alexmorgan","alex.morgan@users.noreply.github.com"],["samrivera","sam.rivera@users.noreply.github.com"]]};
 const FT=[["Mic","Voice Agent","Speak a command and an agent runs it","agents","t-voice"],["Upload","Document OCR","Read images, charts and PDFs","agents","t-ocr"],["Share2","Visual Flow Builder","Connect nodes and run a workflow","agents","t-flow"],["ShieldCheck","Risk Scanner","Flag duplicates, missing approvals and anomalies","audit","t-risk"],["Globe","Research Crawler","Turn a topic into a report","agents","t-crawl"]];
-const chooser=p=>{const g=p==="google",nm=g?"Google":"GitHub";openM(`<div class="dh"><b>${I(g?"Google":"Github")} Continue with ${nm}</b>${xb()}</div><p class="mu" style="margin-top:0">Choose an account to continue to ${BRAND}.</p><div class="acs">${ACC[p].map((a,i)=>`<button class="ac" data-a="acct" data-p="${p}" data-i="${i}"><span class="av">${esc(a[0][0].toUpperCase())}</span><span><b>${esc(a[0])}</b><small>${esc(a[1])}</small></span></button>`).join("")}</div><div class="r" style="margin-top:10px"><input id="ox" type="email" placeholder="Use another email" autocomplete="email" style="flex:2 1 160px"><button class="btn" data-a="acct" data-p="${p}" data-i="x">Continue</button></div><p class="mu" style="font-size:12px;margin-bottom:0">Account chooser preview. Connect an OAuth provider to sign in with real ${nm} accounts.</p>`)};
-const menuUI=()=>openM(`<div class="dh"><div class="bn" style="cursor:default">${LOGO(30,"lm")}<b translate="no" class="notranslate">QVMPXT</b></div>${xb("Close menu")}</div><div class="dl">${NAV.map(n=>`<button class="dli ${cur()===n[0]?"on":""}" style="--c:${n[2]}" data-go="${n[0]}"><span class="ic2">${I(n[1])}</span>${t(n[0])}</button>`).join("")}</div><button class="btn c6 dlo" data-a="out">${I("Lock")}${t("logout")}</button>`,"dr");
 const freeUI=()=>{const L=lim(),p=Math.min(100,Math.round(D.used/L*100)),fr=D.plan==="free";
  openM(`<div class="dh"><div><b style="font-size:18px">${planName()} Plan</b><div class="mu">${fr?"Everything below is active on your account":"Your active plan and tools"}</div></div>${xb()}</div>
  <div class="u3"><div><span class="mu">Runs used</span><div class="num">${D.used}</div></div><div><span class="mu">Run limit</span><div class="num">${L.toLocaleString()}</div></div><div><span class="mu">Tokens</span><div class="num">${D.tokens.toLocaleString()}</div></div></div>
@@ -439,15 +482,52 @@ const payUI=()=>{const c=P1(),ci=S.cycle==="y";
  if(S.method==="btc")qr()};
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeM()});addEventListener("hashchange",closeM);
 
+// ---------- v3: plan tools, history, accounts, personal info, drawer ----------
+Object.assign(P,{Menu:'<path d="M4 7h16M4 12h16M4 17h16"/>'});
+const openM=(h,c="")=>{MD.innerHTML=`<div class="ov" data-a="shut"></div><div class="sh ${c}" role="dialog" aria-modal="true"><div class="sb">${h}</div></div>`;MD.hidden=false;document.body.style.overflow="hidden";const x=$(".x",MD);if(x)x.focus({preventScroll:true})};
+MD.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.tagName==="INPUT"){const c=$(".cta",MD);if(c){e.preventDefault();c.click()}}});
+const CAP={free:{seats:2,keys:1,hooks:0},starter:{seats:5,keys:3,hooks:1},growth:{seats:15,keys:10,hooks:1},enterprise:{seats:Infinity,keys:Infinity,hooks:1}};
+const PO=["free","starter","growth","enterprise"],rank=p=>PO.indexOf(p),tfmt=t=>new Date(t).toLocaleString();
+const cap=k=>{const c=(CAP[D.plan]||CAP.free)[k],n={seats:D.team.length,keys:D.keys.length,hooks:0}[k],nm={seats:"team seats",keys:"API keys",hooks:"webhook endpoints"}[k];if(c<=0)throw Error("Webhook endpoints are included from the Starter plan. Upgrade in Billing.");if(n>=c)throw Error(`Your ${planName()} plan includes ${c} ${nm}. Upgrade in Billing to add more.`)};
+const rollUse=()=>{const p=new Date().toISOString().slice(0,7);if(D.period!==p){D.period=p;D.used=0;save()}};
+const hist=(t,o)=>{D.hist=D.hist||[];D.hist.unshift({t,by:S.u.email,at:Date.now(),...o});D.hist.length=Math.min(D.hist.length,200);save()};
+const hrun=(a,input,r)=>{hist("run",{agent:a.name,input:input.slice(0,300),out:r.out.slice(0,1500),tokens:r.tokens});return r};
+const adopt=()=>{const u=S.u;if(!u)return;if(u.plan===undefined){u.plan=D.plan||"free";u.cycle=D.cycle||"m";u.used=D.used||0;u.tokens=D.tokens||0;u.period=D.period||""}D.plan=u.plan;D.cycle=u.cycle;D.used=u.used;D.tokens=u.tokens;D.period=u.period||""};
+const cmpTable=()=>{const rw=[["Agent runs / month",PO.map(p=>({free:50,starter:300,growth:2000,enterprise:20000})[p].toLocaleString())],["Run queue",["Standard","Priority","Priority","Priority"]],["Team seats (RBAC)",PO.map(p=>CAP[p].seats===Infinity?"Unlimited":CAP[p].seats)],["API keys",PO.map(p=>CAP[p].keys===Infinity?"Unlimited":CAP[p].keys)],["Webhook endpoint",PO.map(p=>CAP[p].hooks?"✓":"–")],["Voice, OCR, flow builder, risk scanner",PO.map(()=>"✓")]];
+ return`<div class="card c5 sc"><table><tr><th></th>${PO.map(p=>`<th${p===D.plan?' style="color:var(--cy)"':""}>${p[0].toUpperCase()+p.slice(1)}${p===D.plan?" (you)":""}</th>`).join("")}</tr>${rw.map(r=>`<tr><td>${r[0]}</td>${r[1].map(v=>`<td>${v}</td>`).join("")}</tr>`).join("")}</table></div>`};
+// realistic account chooser: remembered accounts on this device plus an "add account" form
+const oaList=p=>ld("qv_oa",{})[p]||[];
+const oaLogin=(p,n,e)=>{e=String(e||"").trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(e))throw Error("Enter a valid email address");if(U[e]&&!U[e].social)throw Error("This email already has a password account. Sign in with your password.");n=String(n||"").trim()||e.split("@")[0];const oa=ld("qv_oa",{});oa[p]=[{n,e},...(oa[p]||[]).filter(x=>x.e!==e)].slice(0,5);sv("qv_oa",oa);if(!U[e]){U[e]={name:n,email:e,phone:"",cur:"USD",salt:"",h:"",mfa:"",pk:false,social:p,plan:"free",cycle:"m",used:0,tokens:0,period:""};sv("qv_u",U)}closeM();login(e)};
+const chooser=p=>{const g=p==="google",nm=g?"Google":"GitHub",L=oaList(p);
+ openM(`<div class="dh"><b>${I(g?"Google":"Github")} Sign in with ${nm}</b>${xb()}</div><p class="mu" style="margin:0 0 10px">${L.length?"Choose an account":"Add an account"} to continue to ${BRAND}.</p>
+ ${L.length?`<div class="acs">${L.map((a,i)=>`<div class="orow"><button type="button" class="ac" data-a="acct" data-p="${p}" data-i="${i}"><span class="av">${esc(a.n[0].toUpperCase())}</span><span><b>${esc(a.n)}</b><small>${esc(a.e)}</small></span></button><button type="button" class="x" data-a="acctdel" data-p="${p}" data-i="${i}" aria-label="Remove ${esc(a.e)}">${I("Close")}</button></div>`).join("")}</div>`:""}
+ <div class="dv" style="margin:14px 0 4px">${L.length?"Use another account":"Account details"}</div>
+ ${fld("oan",g?"Full name":"GitHub username","text","",g?"name":"username")}${fld("oae",g?"Gmail or Google email":"Email","email","","email")}
+ <button class="cta" data-a="acctnew" data-p="${p}">Continue</button>
+ <p class="mu" style="font-size:12px;margin:10px 0 0">Test sign-in: no ${nm} password is asked for and nothing is sent to ${nm}. Accounts you add are remembered on this device only.</p>`)};
+const meUI=()=>{const u=S.u,cu=["USD","BTC","BDT"],cn={USD:"USD ($)",BTC:"Bitcoin (₿)",BDT:"BDT (৳)"};
+ return`<h2>${I("Users")} Personal info</h2><div class="g"><div class="card c5"><b>Profile and contact</b><p class="mu" style="margin:4px 0">Keep your details current. They appear on invoices and quote links.</p>${inp("mn","Full name","text",u.name||"")}<div class="r"><input value="${esc(u.email)}" disabled aria-label="Email"></div>${inp("mp","Phone","tel",u.phone||"")}${inp("mco","Company (optional)","text",u.company||"")}${inp("mad","Address, city, country","text",u.addr||"")}<div class="r"><select id="mcu" aria-label="Preferred currency">${cu.map(c=>`<option value="${c}" ${u.cur===c?"selected":""}>${cn[c]}</option>`).join("")}</select><button class="btn pri" data-a="prof2">Save</button></div></div>
+ <div class="card c2"><b>${I("Lock")} Account</b><p class="mu">Plan: <b>${planName()}</b><br>Sign-in method: ${u.social?(u.social==="google"?"Google":"GitHub"):"Email and password"}</p><div class="r"><button class="btn" data-go="set">Security, MFA and passkey</button><button class="btn" data-go="pay">Manage plan</button></div><button class="btn c6" data-a="out" style="width:100%">${I("Lock")}${t("logout")}</button></div></div>`};
+const histUI=()=>{const em=S.u.email,hs=(D.hist||[]).filter(x=>x.by===em),runs=hs.filter(x=>x.t==="run"),aud=hs.filter(x=>x.t==="audit"),qs=Object.values(D.shares).filter(s=>!s.by||s.by===em).sort((a,b)=>(b.at||0)-(a.at||0));
+ return`<h2>${I("Database")} My projects &amp; history</h2><div class="u3"><div><span class="mu">Agent runs</span><div class="num">${runs.length}</div></div><div><span class="mu">Quote links</span><div class="num">${qs.length}</div></div><div><span class="mu">Audits</span><div class="num">${aud.length}</div></div></div>
+ <h2 style="font-size:18px">${I("Bot")} Agent runs</h2>${runs.length?runs.slice(0,40).map(r=>`<details class="card c1" style="margin-bottom:8px"><summary style="cursor:pointer"><b>${esc(r.agent)}</b> <span class="mu">· ${r.tokens} tokens · ${tfmt(r.at)}</span></summary><p class="mu" style="margin:8px 0 4px">Input</p><div class="o">${esc(r.input)}</div><p class="mu" style="margin:8px 0 4px">Output</p><div class="o">${esc(r.out)}</div></details>`).join(""):`<div class="card c1 mu">No runs yet. Run an agent and it is saved here.</div>`}
+ <h2 style="font-size:18px">${I("Share2")} Quote links</h2><div class="card c2 sc"><table><tr><th>Quote</th><th>Client</th><th>Total</th><th>Views</th><th>Sign-ups</th><th>Created</th></tr>${qs.map(s=>`<tr><td><a data-go="q/${s.id}" style="color:var(--mi);cursor:pointer">${esc(s.title)}</a></td><td>${esc(s.client||"")}</td><td>${money(s.qty*s.price)}</td><td>${s.views}</td><td>${s.signups}</td><td class="mu">${s.at?tfmt(s.at):""}</td></tr>`).join("")||`<tr><td colspan="6" class="mu">No quote links yet.</td></tr>`}</table></div>
+ <h2 style="font-size:18px">${I("ShieldCheck")} Audit history</h2><div class="card c3 sc"><table><tr><th>When</th><th>Records</th><th>Findings</th><th>Risk score</th></tr>${aud.slice(0,40).map(a=>`<tr><td>${tfmt(a.at)}</td><td>${a.checked}</td><td>${a.found}</td><td><span class="tg ${a.score>50?"high":a.score>20?"medium":"low"}">${a.score}/100</span></td></tr>`).join("")||`<tr><td colspan="4" class="mu">No audits yet.</td></tr>`}</table></div>
+ ${hs.length?`<div class="r" style="margin-top:14px"><button class="btn c6" data-a="hclr">Clear run and audit history</button></div>`:""}`};
+const menuUI=()=>{const u=S.u,ex=[["me","Users","Personal info","#38bdf8"],["hist","Database","My projects & history","#34d399"]],it=(n,ic,lb,c)=>`<button class="dli ${cur()===n?"on":""}" style="--c:${c}" data-go="${n}"><span class="ic2">${I(ic)}</span>${lb}</button>`;
+ openM(`<div class="dh"><div class="bn" style="cursor:default">${LOGO(30,"lm")}<b translate="no" class="notranslate">QVMPXT</b></div>${xb("Close menu")}</div><div class="dme"><span class="av">${esc((u.name||"?")[0].toUpperCase())}</span><span style="min-width:0"><b>${esc(u.name||"")}</b><small>${esc(u.email)} · ${planName()} plan</small></span></div>
+ <div class="dl">${NAV.map(n=>it(n[0],n[1],t(n[0]),n[2])).join("")}<div class="dsep"></div>${ex.map(n=>it(n[0],n[1],n[2],n[3])).join("")}</div><button class="btn c6 dlo" data-a="out">${I("Lock")}${t("logout")}</button>`,"dr")};
+const payWait=()=>openM(`<div class="dh"><b>Complete payment in Stripe</b>${xb()}</div><p class="mu">A secure Stripe page opened in a new tab. After you pay, come back and confirm below. In production the Stripe webhook on your server is what confirms the payment.</p><button class="cta" data-a="paydone">${I("CheckCircle")}I have completed payment</button><button class="btn" data-a="meth" data-id="${S.method}" style="width:100%;margin-top:8px">Back to payment options</button>`);
+
 // ---------- router ----------
 const cur=()=>(location.hash.slice(2)||"home").split("/")[0];
 function stopVoice(){clearInterval(S.vi);clearInterval(S.vw);S.vi=S.vw=0}
-function shell(inner){$("#app").innerHTML=`<nav><div class="w nb"><button class="bn" data-go="home" aria-label="QVMPXT home">${LOGO(34,"ln")}<b translate="no" class="notranslate">QVMPXT</b></button><div class="nbr"><button class="fp" data-a="free" aria-label="Open plan dashboard">${I("Zap")}<span>${planName()} Plan</span></button><button class="dots" data-a="menu" aria-label="Open menu" aria-haspopup="dialog">${I("More")}</button></div></div></nav><main class="w pg">${inner}</main>${footer()}`}
-function route(){S.timers.forEach(clearInterval);S.timers=[];stopVoice();const h=location.hash.slice(2)||"home";document.documentElement.lang=S.lang;document.documentElement.dir=isRtl(S.lang)?"rtl":"ltr";
+function shell(inner){$("#app").innerHTML=`<nav><div class="w nb"><button class="bn" data-go="home" aria-label="QVMPXT home">${LOGO(34,"ln")}<b translate="no" class="notranslate">QVMPXT</b></button><div class="nbr"><button class="fp" data-a="free" aria-label="Open plan dashboard">${I("Zap")}<span>${planName()} Plan</span></button><button class="dots" data-a="menu" aria-label="Open menu" aria-haspopup="dialog">${I("Menu")}</button></div></div></nav><main class="w pg">${inner}</main>${footer()}`}
+function route(){rollUse();S.timers.forEach(clearInterval);S.timers=[];stopVoice();const h=location.hash.slice(2)||"home";document.documentElement.lang=S.lang;document.documentElement.dir=isRtl(S.lang)?"rtl":"ltr";
  if(h.startsWith("q/")){$("#app").innerHTML=`<main class="w pg">${pg.quote(h.slice(2))}</main>`+footer();return}
- if(!S.u){$("#app").innerHTML=authUI(S.am);return}
- const k=NAV.some(n=>n[0]===h)?h:"home";shell(pg[k]());if(B[k])B[k]();if(S.sc){const e=document.getElementById(S.sc);S.sc="";if(e)requestAnimationFrame(()=>e.scrollIntoView())}}
-const login=e=>{S.u=U[e];S.role="Admin";S.pre="";S.method=({USD:"card",BTC:"btc",BDT:"mob"})[S.u.cur]||"card";sv("qv_s",{e,tok:btoa(JSON.stringify({e,x:Date.now()+864e5}))+"."+uid()});if(!D.team.length)D.team.push({n:S.u.name,e,r:"Admin"});save();if(location.hash==="#/home"||!location.hash)route();else location.hash="#/home";if(!S.u.wd){S.u.wd=1;sv("qv_u",U);setTimeout(welcome,350)}};
+ if(!S.u){$("#app").innerHTML=authUI(S.am);const f=$(S.pre&&S.am==="in"?"#ap":"#ae");if(f&&innerWidth>700)f.focus();return}
+ const k=(NAV.some(n=>n[0]===h)||h==="me"||h==="hist")?h:"home";shell(pg[k]());if(B[k])B[k]();if(S.sc){const e=document.getElementById(S.sc);S.sc="";if(e)requestAnimationFrame(()=>e.scrollIntoView())}}
+const login=e=>{S.u=U[e];adopt();try{sessionStorage.setItem("qv_live","1")}catch{}sv("qv_last",e);S.role="Admin";S.pre="";S.method=({USD:"card",BTC:"btc",BDT:"mob"})[S.u.cur]||"card";sv("qv_s",{e,tok:btoa(JSON.stringify({e,x:Date.now()+864e5}))+"."+uid()});if(!D.team.length)D.team.push({n:S.u.name,e,r:"Admin"});save();if(location.hash==="#/home"||!location.hash)route();else location.hash="#/home";if(!S.u.wd){S.u.wd=1;sv("qv_u",U);setTimeout(welcome,350)}};
 const qr=()=>{const a=$("#bw").value.trim(),c=P1(),btc=c.tot.toFixed(8),ok=/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,62}$/.test(a),ln=/^lnbc[0-9a-z]+$/i.test(a),q=$("#bq");$("#bx").textContent=`${btc} BTC (listed price, about ${money(c.usd)})`;q.hidden=!(ok||ln);q.textContent="";S.qrok=ok||ln;if(!S.qrok)return;
  const u=ln?"lightning:"+a:`bitcoin:${a}?amount=${btc}`;q.dataset.uri=u;try{q.innerHTML=qrSvg(u,180)}catch{q.textContent=u}};
 const fin=(m,tx)=>{const c=P1();D.plan=S.sel;D.cycle=S.cycle;D.paid.unshift({id:"INV-"+Date.now().toString(36).toUpperCase(),plan:c.p[2],sub:c.sub,tax:c.tax,tx:c.tx,tot:c.tot,cur:c.cy,cyc:S.cycle,m,txid:tx||"",at:Date.now()});save();toast("Plan activated (sandbox checkout): "+c.p[2]);closeM();route()};
@@ -487,24 +567,30 @@ const A={
  smd(){if(!S.sm)throw Error("Generate a sitemap first");dl("sitemap.xml",S.sm,"application/xml")},
  eye(b){const i=$("#ap"),show=i.type==="password";i.type=show?"text":"password";b.innerHTML=I(show?"EyeOff":"Eye");b.setAttribute("aria-pressed",String(show));b.setAttribute("aria-label",show?"Hide password":"Show password");i.focus()},
  social(b){chooser(b.dataset.id)},
- acct(b){const p=b.dataset.p,i=b.dataset.i;let n,e;if(i==="x"){e=$("#ox").value.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(e))throw Error("Enter a valid email address");n=e.split("@")[0]}else{[n,e]=ACC[p][+i]}
-  if(!U[e]){U[e]={name:n,email:e,phone:"",cur:"USD",salt:"",h:"",mfa:"",pk:false,social:p};sv("qv_u",U)}closeM();login(e)},
+ acct(b){const p=b.dataset.p,a=oaList(p)[+b.dataset.i];if(!a)throw Error("Account not found");oaLogin(p,a.n,a.e)},
+ acctnew(b){oaLogin(b.dataset.p,$("#oan").value,$("#oae").value)},
+ acctdel(b){const oa=ld("qv_oa",{}),p=b.dataset.p;oa[p]=(oa[p]||[]).filter((_,i)=>i!==+b.dataset.i);sv("qv_oa",oa);chooser(p)},
+ prof2(){const u=S.u;u.name=$("#mn").value.trim()||u.name;u.phone=$("#mp").value.trim();u.company=$("#mco").value.trim();u.addr=$("#mad").value.trim();u.cur=$("#mcu").value;S.method=({USD:"card",BTC:"btc",BDT:"mob"})[u.cur]||"card";sv("qv_u",U);toast("Personal info saved");route()},
+ hclr(){D.hist=(D.hist||[]).filter(x=>x.by!==S.u.email);save();toast("History cleared");route()},
+ cancel(){const f=CAP.free;openM(`<div class="dh"><b>Downgrade to Free?</b>${xb()}</div><p class="mu">You keep your data, history and invoices. Free includes 50 runs a month, ${f.seats} team seats and ${f.keys} API key. Anything above those limits stays, but you cannot add more.</p><div class="r"><button class="btn" data-a="shut">Keep my plan</button><button class="btn c6" data-a="cancel2">Downgrade</button></div>`)},
+ cancel2(){D.plan="free";D.cycle="m";save();closeM();toast("You are on the Free plan. Your data, history and invoices are kept.");route()},
+ paydone(){fin("Stripe Payment Link")},
  shut(){closeM()},free(){freeUI()},menu(){menuUI()},cyc2(b){S.cycle=b.dataset.id;payUI()},
  pexp(){dl("qvmpxt-i18n-en.json",JSON.stringify({lang:"xx",strings:Object.fromEntries(Object.keys(L).map(k=>[k,L[k][0]]))},null,1),"application/json")},
  pimp(){$("#pf").click()},
  sample(){const r=[];let sd=7;const rnd=()=>(sd=(sd*1103515245+12345)&0x7fffffff)/0x7fffffff;for(let i=0;i<500;i++){const a=Math.round(80+rnd()*900+(rnd()<.02?9000+rnd()*9000:0)),d=new Date(Date.UTC(2026,0,1+(rnd()*300|0)));r.push({id:"R"+(1000+(rnd()<.01?(rnd()*i|0):i)),amount:a,approvedBy:rnd()<.04?"":["Rana","Sumi","Ali","Nora"][rnd()*4|0],date:d.toISOString().slice(0,10)})}$("#au").value=JSON.stringify(r);S.au=$("#au").value;toast("500 sample records loaded")},
  async sub(b){const m=b.dataset.id,e=$("#ae").value.trim().toLowerCase(),p=$("#ap").value;
   if(!/^\S+@\S+\.\S+$/.test(e)||!p)throw Error("A valid email and a password are required");
-  if(m==="up"){const n=$("#an").value.trim();if(!n)throw Error("Name is required");const phn=$("#ph").value.trim();if(!/^[+\d][\d\s()-]{6,}$/.test(phn))throw Error("A valid phone number is required");if(U[e])throw Error("Account already exists");const salt=uid();U[e]={name:n,email:e,phone:phn,cur:"USD",salt,h:await H(salt+p),mfa:"",pk:false};sv("qv_u",U);return login(e)}
+  if(m==="up"){const n=$("#an").value.trim();if(!n)throw Error("Name is required");const phn=$("#ph").value.trim();if(!/^[+\d][\d\s()-]{6,}$/.test(phn))throw Error("A valid phone number is required");if(U[e])throw Error("Account already exists");const salt=uid();U[e]={name:n,email:e,phone:phn,cur:"USD",salt,h:await H(salt+p),mfa:"",pk:false,plan:"free",cycle:"m",used:0,tokens:0,period:""};sv("qv_u",U);return login(e)}
   const u=U[e];if(!u||await H(u.salt+p)!==u.h)throw Error("Wrong email or password");
   if(u.mfa){const c=$("#mc");if(!c.value){$("#mcw").hidden=false;$("#mh").textContent="Authenticator simulator code: "+await totp(u.mfa);throw Error("Enter your 6-digit MFA code")}if(c.value.trim()!==await totp(u.mfa))throw Error("Wrong MFA code")}login(e)},
  async pkl(){const em=$("#ae").value.trim().toLowerCase()||(Object.values(U).find(x=>x.pk)||{}).email||"";if(!em)throw Error("Enter your email, or enroll a passkey in Settings first");const u=U[em];if(!u||!u.pk)throw Error("No passkey for this email. Enroll one in Settings first.");toast("Verifying biometric…");await sleep(900);login(u.email)},
- out(){closeM();S.u=null;sv("qv_s",null);route()},
+ out(){closeM();S.pre=S.u?S.u.email:"";S.am="in";S.u=null;sv("qv_s",null);try{sessionStorage.removeItem("qv_live")}catch{}route()},
  inst(){S.evt.prompt();S.evt=null},fly(b){$("#flyd").textContent=FLY[b.dataset.id][2]},
  like(b){const p=D.feed.find(x=>x.id===b.dataset.id),e=S.u.email;p.likes=p.likes.includes(e)?p.likes.filter(x=>x!==e):[...p.likes,e];save();$("#feed").innerHTML=feed()},
  cm(b){const e=$("#ci"+b.dataset.id);e.hidden=!e.hidden;if(!e.hidden)$("input",e).focus()},
  send(b){const p=D.feed.find(x=>x.id===b.dataset.id),v=$("input",b.parentNode).value.trim();if(!v)throw Error("Write a comment first");p.cm.push({by:S.u.name,x:v.slice(0,300)});save();$("#feed").innerHTML=feed()},
- fork(b){need("fork");const p=D.feed.find(x=>x.id===b.dataset.id);if(p.type==="agent")D.agents.unshift({id:uid(),name:p.data.name+" (fork)",task:p.data.task});else{const id=uid();D.shares[id]={...p.data,id,title:p.data.title+" (fork)",views:0,signups:0}}p.forks++;save();$("#feed").innerHTML=feed();toast("Forked into your workspace")},
+ fork(b){need("fork");const p=D.feed.find(x=>x.id===b.dataset.id);if(p.type==="agent")D.agents.unshift({id:uid(),name:p.data.name+" (fork)",task:p.data.task});else{const id=uid();D.shares[id]={...p.data,id,by:S.u.email,at:Date.now(),title:p.data.title+" (fork)",views:0,signups:0}}p.forks++;save();$("#feed").innerHTML=feed();toast("Forked into your workspace")},
  pub(){need("publish");const v=$("#pk").value.split(":");if(!v[1])throw Error("Create an agent or quote first");let o;
   if(v[0]==="agent"){const a=D.agents.find(x=>x.id===v[1]);o={type:"agent",t:a.name,x:a.task,data:{name:a.name,task:a.task}}}else{const s=D.shares[v[1]];o={type:"quote",t:s.title,x:`${s.item} × ${s.qty} · ${money(s.qty*s.price)}`,data:{title:s.title,client:s.client,item:s.item,qty:s.qty,price:s.price}}}
   D.feed.unshift({id:uid(),by:S.u.name,likes:[],cm:[],forks:0,...o});save();$("#feed").innerHTML=feed();toast("Published")},
@@ -534,30 +620,30 @@ const A={
   const L2=[`# Research report: ${tp}`,"_Simulated crawl: no network requests are made._","","## Plan","1. Expand the topic into 3 queries","2. Fetch and rank sources","3. Extract findings","","## Sources",`- https://example.org/${sl} (relevance ${r()})`,`- https://example.com/insights/${sl} (relevance ${r()})`,`- https://example.net/${sl}/review (relevance ${r()})`,"","## Findings","- Trend 1: adoption is shifting from pilots to production.","- Trend 2: usage-based pricing is replacing flat seats.","- Trend 3: buyers ask for audit trails and data export.","","## Summary",`Illustrative summary for "${tp}". Connect a live provider and crawler on the server to replace this simulation.`];
   S.report="";for(const l of L2){await sleep(300);S.report+=l+"\n";o.textContent=S.report}$("#dlr").hidden=false;log("crawl "+tp)},
  dlr(){dl("research-report.md",S.report,"text/markdown")},
- qm(){need("create");const item=$("#qi").value.trim();if(!item)throw Error("Add an item");const id=uid();D.shares[id]={id,title:$("#qt").value||"Quote",client:$("#qc").value,item,qty:Math.max(1,+$("#qq").value||1),price:Math.max(0,+$("#qp").value||0),views:0,signups:0};save();
+ qm(){need("create");const item=$("#qi").value.trim();if(!item)throw Error("Add an item");const id=uid();D.shares[id]={id,by:S.u.email,at:Date.now(),title:$("#qt").value||"Quote",client:$("#qc").value,item,qty:Math.max(1,+$("#qq").value||1),price:Math.max(0,+$("#qp").value||0),views:0,signups:0};save();
   const u=location.href.split("#")[0]+"#/q/"+id;$("#qo").innerHTML=`<div class="o">${esc(u)}</div><div class="r"><button class="btn" data-a="cpu" data-id="${esc(u)}">${I("Share2")}Copy</button><button class="btn" data-go="q/${id}">${I("ChevronRight")}Client view</button></div>`;$("#trk").innerHTML=trk()},
  cpu(b){cp(b.dataset.id)},
  join(b){const s=D.shares[b.dataset.id];if(s){s.signups++;save()}S.am="up";location.hash="#/home";route()},
  e2(){const a=$("#au");if(a)S.au=a.value;D.e2ee=!D.e2ee;save();route()},
  async scan(){let tx=$("#au").value,rows;S.au=tx;let ex="";if(D.e2ee){const c=await enc(tx);tx=await c.dec();ex=`<p class="mu">${I("Lock")} E2EE: ${c.len} bytes AES-256-GCM ciphertext (${c.hex}…) decrypted in memory only.</p>`}
-  try{rows=JSON.parse(tx)}catch(e){throw Error("Invalid JSON: "+e.message)}const r=await API.audit(rows),cl={high:"var(--cr)",medium:"var(--am)",low:"var(--mi)","":"rgba(16,185,129,.35)"};
+  try{rows=JSON.parse(tx)}catch(e){throw Error("Invalid JSON: "+e.message)}const r=await API.audit(rows);hist("audit",{checked:r.checked,found:r.f.length,score:r.score});const cl={high:"var(--cr)",medium:"var(--am)",low:"var(--mi)","":"rgba(16,185,129,.35)"};
   $("#ar2").innerHTML=`${ex}<p>${I("Activity")} ${r.checked} records · ${r.f.length} findings · Risk score <b class="${r.score>50?"high":r.score>20?"medium":"low"}">${r.score}/100</b></p><b class="mu">Anomaly matrix</b><div class="mx">${r.m.map((s,i)=>`<i title="#${i+1} ${esc(rows[i].id)} ${s||"clean"}" style="background:${cl[s]}"></i>`).join("")}</div><div class="sc"><table>${r.f.map(x=>`<tr><td>#${x.n} ${esc(x.id)}</td><td><span class="tg ${x.sev}">${x.sev}</span></td><td>${x.rule}</td><td class="mu">${x.d}</td></tr>`).join("")}</table></div>`},
  async mfa(){const s=[...crypto.getRandomValues(new Uint8Array(10))].map(b=>"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b%32]).join("");S.u.mfa=s;sv("qv_u",U);route()},
  mfx(){S.u.mfa="";sv("qv_u",U);route()},
  async mvf(){toast($("#mv").value.trim()===await totp(S.u.mfa)?"Code is valid":"Code is not valid")},
  async pk(){let real=false;try{await navigator.credentials.create({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),rp:{name:BRAND},user:{id:crypto.getRandomValues(new Uint8Array(16)),name:S.u.email,displayName:S.u.name},pubKeyCredParams:[{type:"public-key",alg:-7}],timeout:20000}});real=true}catch{await sleep(800)}S.u.pk=true;sv("qv_u",U);toast(real?"Passkey registered":"Passkey enrolled (simulated biometric)");route()},
  prof(){S.u.name=$("#pn").value.trim()||S.u.name;S.u.phone=$("#pp").value.trim();S.u.cur=$("#pc2").value;sv("qv_u",U);toast("Profile saved");route()},
- inv2(){need("invite");const e=$("#ie").value.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(e))throw Error("Enter a valid email");if(D.team.some(m=>m.e===e))throw Error("Already on the team");D.team.push({n:e.split("@")[0],e,r:$("#ir").value});save();route();toast("Invitation recorded (demo)")},
+ inv2(){need("invite");cap("seats");const e=$("#ie").value.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(e))throw Error("Enter a valid email");if(D.team.some(m=>m.e===e))throw Error("Already on the team");D.team.push({n:e.split("@")[0],e,r:$("#ir").value});save();route();toast("Invitation recorded (demo)")},
  plan(b){S.sel=b.dataset.id;payUI()},meth(b){S.method=b.dataset.id;payUI()},
- async card(b){const sk=S.sel+(S.cycle==="y"?"_y":"");if(STRIPE_LINKS[sk]){open(STRIPE_LINKS[sk],"_blank","noopener");return}const n=$("#cn").value.replace(/\s/g,""),m=$("#cx").value.match(/^(\d\d)\s*\/\s*(\d\d)$/);
+ async card(b){const sk=S.sel+(S.cycle==="y"?"_y":"");if(STRIPE_LINKS[sk]){open(STRIPE_LINKS[sk],"_blank","noopener");payWait();return}const n=$("#cn").value.replace(/\s/g,""),m=$("#cx").value.match(/^(\d\d)\s*\/\s*(\d\d)$/);
   if(!luhn(n))throw Error("Card number is invalid");if(!m||+m[1]<1||+m[1]>12||new Date(2000+ +m[2],+m[1])<new Date())throw Error("Card expiry is invalid");if(!/^\d{3,4}$/.test($("#cv").value))throw Error("CVC is invalid");
   b.disabled=true;toast("Authorising…");await sleep(900);fin("card")},
  btcpaid(){if(!S.qrok)throw Error("Enter a valid address or invoice first");fin("btc")},
  btccp(){const u=$("#bq").dataset.uri;if(!u)throw Error("Enter a valid address first");cp(u)},
  inv(b){const v=D.paid.find(x=>x.id===b.dataset.id),cy=(v.cur||"usd").toUpperCase(),f=n=>cy==="BTC"?Number(n).toFixed(8):Number(n).toFixed(2);dl(v.id+".pdf",pdf([`${BRAND} Invoice ${v.id}`,"Date: "+new Date(v.at).toISOString().slice(0,10),"Billed to: "+S.u.name+" <"+S.u.email+">","Plan: "+v.plan+" ("+(v.cyc==="y"?"yearly":"monthly")+")","Subtotal: "+cy+" "+f(v.sub),`Tax (${v.tx}%): ${cy} ${f(v.tax)}`,"Total: "+cy+" "+f(v.tot),"Paid via: "+v.m,...(v.txid?["TxID: "+v.txid]:[]),"","Founder & Chief Architect: "+FOUNDER]),"application/pdf")},
- gk(){need("create");D.keys.unshift({id:uid(),k:"qvm_live_"+[...crypto.getRandomValues(new Uint8Array(12))].map(b=>b.toString(16).padStart(2,"0")).join("")});save();route()},
+ gk(){need("create");cap("keys");D.keys.unshift({id:uid(),k:"qvm_live_"+[...crypto.getRandomValues(new Uint8Array(12))].map(b=>b.toString(16).padStart(2,"0")).join("")});save();route()},
  rk(b){D.keys=D.keys.filter(k=>k.id!==b.dataset.id);save();route()},
- wa(){const u=$("#wh").value.trim();if(!/^https?:\/\/\S+$/.test(u))throw Error("Enter a valid http(s) URL");D.hooks=[u];save();toast("Endpoint saved")},
+ wa(){cap("hooks");const u=$("#wh").value.trim();if(!/^https?:\/\/\S+$/.test(u))throw Error("Enter a valid http(s) URL");D.hooks=[u];save();toast("Endpoint saved")},
  async wt(){const u=D.hooks[0];if(!u)throw Error("Save an endpoint first");await sleep(250);const body=JSON.stringify({event:"agent.run.completed",id:uid()});log(`POST ${u} 200 · HMAC sha256=${(await H(u+body)).slice(0,16)} · ${body}`)},
  async ts(){if(!D.keys.length)throw Error("Generate an API key first");const ep=$("#ep").value,t0=performance.now();let r;
   if(ep.includes("/agents/run"))r=await API.run(D.agents[0].id,"API ping");else if(ep.includes("/audit"))r=await API.audit([{id:"T1",amount:100,approvedBy:"x",date:"2026-11-03"}]);else r={agents:D.agents.length};
@@ -594,6 +680,7 @@ if("serviceWorker" in navigator&&/^https?:$/.test(location.protocol))addEventLis
 
 // ---------- boot: splash with logo, then app ----------
 $("#spl").innerHTML=LOGO(96,"ls");
+try{const s0=ld("qv_s",null),last=ld("qv_last","");S.pre=U[last]?last:"";if(S.pre)S.am="in";if(s0&&sessionStorage.getItem("qv_live")==="1"&&JSON.parse(atob(s0.tok.split(".")[0])).x>Date.now()&&U[s0.e]){S.u=U[s0.e];adopt()}}catch{}
 route();loadPack(S.lang);
 setTimeout(()=>{const s=$("#spl");s.style.opacity=0;setTimeout(()=>s.remove(),300)},350);
 </script>
