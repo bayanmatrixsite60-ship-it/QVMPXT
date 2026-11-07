@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Qvmpxt</title>
+<meta name="theme-color" content="#03050C">
+<meta name="description" content="Qvmpxt: AI agents, a 60-second quote-link micro-SaaS, compliance audits and an agent marketplace. Pay by card, Bitcoin or bKash / Nagad / Rocket.">
+<meta property="og:title" content="Qvmpxt: Sovereign AI &amp; Financial Ecosystem">
+<meta property="og:description" content="AI agents, quote links, compliance audits and an agent marketplace in one place.">
+<meta property="og:type" content="website">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","name":"Qvmpxt","founder":{"@type":"Person","name":"M Maruf Chowdhury"},"logo":"/icon.svg"},{"@type":"SoftwareApplication","name":"Qvmpxt","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"AggregateOffer","priceCurrency":"USD","lowPrice":"9","highPrice":"99","offerCount":"3"}}]}</script>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<style>
+:root{--bg:#03050C;--tx:#f1f5f9;--mu:#94a3b8;--ln:rgba(148,163,184,.2);--cy:#00f0ff;--in:#6366f1;--em:#10b981;--mi:#34d399;--am:#f59e0b;--cr:#ff3366;--bt:#f7931a}
+*{box-sizing:border-box}html,body{margin:0}[hidden]{display:none!important}
+body{background:var(--bg);color:var(--tx);font:16px/1.5 ui-sans-serif,system-ui,"Noto Sans Bengali","Noto Sans SC","Noto Sans JP","Noto Naskh Arabic",sans-serif;min-height:100vh;overflow-x:hidden}
+body:before{content:"";position:fixed;inset:-20%;z-index:-2;background:radial-gradient(500px 400px at 15% 20%,rgba(99,102,241,.4),transparent),radial-gradient(500px 400px at 85% 30%,rgba(0,240,255,.22),transparent),radial-gradient(600px 400px at 50% 95%,rgba(16,185,129,.25),transparent),radial-gradient(380px 300px at 90% 85%,rgba(247,147,26,.14),transparent),radial-gradient(320px 260px at 8% 80%,rgba(255,51,102,.12),transparent)}
+@media(max-width:700px){body:before{animation:none}}
+@keyframes dr{to{transform:translate(4%,3%) scale(1.08)}}
+#bg{position:fixed;inset:0;z-index:-1}
+.w{max-width:1100px;margin:auto;padding:0 14px}
+nav{position:sticky;top:0;z-index:20;background:rgba(3,5,12,.94);border-bottom:1px solid var(--ln);padding-top:env(safe-area-inset-top)}
+.nb{display:flex;align-items:center;gap:8px;padding:4px 0}.nb>.lgo{cursor:pointer;flex:none;display:flex;align-items:center;padding:4px}
+.lk{display:flex;gap:2px;overflow-x:auto;flex:1;scrollbar-width:none}
+.nv{flex:1 0 56px;display:flex;flex-direction:column;align-items:center;gap:1px;background:none;border:0;border-radius:10px;padding:6px 4px;cursor:pointer;color:var(--mu);font-size:10px;line-height:1.2}
+.nv svg{width:22px;height:22px}.nv:hover,.nv.on{color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent)}
+svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+button,select,input,textarea{font:inherit;color:inherit}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--ln);background:rgba(148,163,184,.08);padding:8px 12px;border-radius:10px;cursor:pointer;min-height:40px;color:inherit;text-decoration:none;transition:transform .12s,background .2s}
+.btn:hover{background:rgba(148,163,184,.18)}.btn:active{transform:scale(.97)}.btn:disabled{opacity:.5}
+.btn:focus-visible,.nv:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--cy);outline-offset:2px}
+.btn.on{border-color:var(--c,var(--cy));color:var(--c,var(--cy));background:color-mix(in srgb,var(--c,var(--cy)) 14%,transparent)}
+.pri{background:linear-gradient(135deg,var(--in),var(--cy));color:#03050C;font-weight:800;border:0}.pri:hover{filter:brightness(1.1);background:linear-gradient(135deg,var(--in),var(--cy))}
+select,input,textarea{background:rgba(148,163,184,.08);border:1px solid var(--ln);border-radius:10px;padding:9px 12px;width:100%}select{width:auto}
+.card{background:rgba(15,23,42,.82);border:1px solid var(--ln);border-radius:18px;padding:16px;box-shadow:0 0 0 1px color-mix(in srgb,var(--c,#6366f1) 14%,transparent),0 6px 18px rgba(0,0,0,.28)}
+.g{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.r{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.r>*{flex:1 1 130px}
+.hero{padding:40px 0 18px}.hero h1{font-size:clamp(32px,6.5vw,58px);line-height:1.08;margin:0 0 12px;max-width:14em}.hero p{color:var(--mu);max-width:36em}
+.mu{color:var(--mu);font-size:14px}.o{white-space:pre-wrap;background:rgba(0,0,0,.35);border-radius:10px;padding:10px;margin-top:8px;font-size:13px;word-break:break-word}
+.c1{--c:var(--cy)}.c2{--c:var(--em)}.c3{--c:var(--am)}.c4{--c:var(--bt)}.c5{--c:var(--in)}.c6{--c:var(--cr)}
+.ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--c);margin-bottom:8px}
+.tg{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;border:1px solid}.high{color:var(--cr)}.medium{color:var(--am)}.low{color:var(--mi)}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;text-align:start;border-bottom:1px solid var(--ln)}.sc{overflow-x:auto}
+.num{font-size:32px;font-weight:800}.pg{animation:fi .35s ease}@keyframes fi{from{opacity:0;transform:translateY(8px)}}
+h2{margin:26px 0 10px;display:flex;align-items:center;gap:8px}
+#toast{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:#1e293b;border:1px solid var(--ln);padding:10px 16px;border-radius:12px;z-index:90;display:none;max-width:90vw}
+.mx{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}.mx i{width:22px;height:22px;border-radius:6px;display:block}
+.nd{cursor:pointer}code{background:rgba(0,0,0,.35);padding:1px 6px;border-radius:6px;word-break:break-all}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--in),var(--cy));color:#03050C;font-weight:700;flex:none}
+footer{margin-top:46px;border-top:1px solid var(--ln);background:rgba(3,5,12,.94);content-visibility:auto;contain-intrinsic-size:auto 420px;padding:26px 0 calc(20px + env(safe-area-inset-bottom))}
+.fg{display:grid;gap:22px;grid-template-columns:2fr 1fr 1fr 1.2fr}@media(max-width:760px){.fg{grid-template-columns:1fr 1fr}.fg>:first-child{grid-column:1/-1}}
+footer a{display:block;color:var(--mu);padding:3px 0;cursor:pointer}footer a:hover{color:var(--tx)}
+.lg0{border-top:1px solid var(--ln);margin-top:18px;padding-top:14px;text-align:center;font-size:14px;color:var(--mu)}.lg0 b{color:var(--tx);display:block}
+.bd{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--ln);border-radius:8px;padding:4px 9px;margin:3px 4px 3px 0;font-size:13px}
+/* logo */
+.lgo{gap:10px}.lgo b{font-size:20px;letter-spacing:.12em;font-weight:800;background:linear-gradient(135deg,var(--cy),var(--in));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lgs{filter:drop-shadow(0 0 8px rgba(0,240,255,.55))}
+#spl{position:fixed;inset:0;z-index:100;background:var(--bg);display:grid;place-items:center;transition:opacity .5s}
+#spl svg{width:96px;height:96px;animation:sp 1.6s ease-in-out infinite}@keyframes sp{50%{transform:scale(1.12) rotate(30deg)}}
+/* auth gate */
+.au{position:fixed;inset:0;z-index:40;display:flex;padding:16px;overflow:auto;background:radial-gradient(700px 500px at 50% 40%,rgba(99,102,241,.18),rgba(3,5,12,.6))}
+.gl{position:relative;margin:auto;width:min(440px,100%);background:rgba(8,12,24,.9);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(0,240,255,.35);box-shadow:0 40px 100px rgba(0,0,0,.95),0 0 60px rgba(0,240,255,.18);border-radius:28px;padding:36px}
+.gl:before{content:"";position:absolute;top:-1px;left:8%;right:8%;height:2px;background:linear-gradient(90deg,transparent,#00f0ff,#6366f1,transparent);filter:drop-shadow(0 0 6px rgba(0,240,255,.9));pointer-events:none}
+.gl .hd{text-align:center;margin-bottom:18px}.gl .hd svg{width:64px;height:64px}.gl .hd b{display:block;font-size:30px;letter-spacing:.16em;margin-top:6px;background:linear-gradient(135deg,var(--cy),var(--in));-webkit-background-clip:text;background-clip:text;color:transparent}
+.gl .pwr{margin:8px auto 0;max-width:30em;font-size:11px;line-height:1.5;letter-spacing:.06em;color:var(--mu)}.gl .pwr em{font-style:normal;color:var(--cy)}
+.fl{position:relative;margin:14px 0}
+.fl input{background:rgba(255,255,255,.03);border:1px solid rgba(148,163,184,.2);border-radius:12px;padding:20px 16px 8px;padding-inline-end:44px;color:#f1f5f9;font-size:16px;transition:border-color .2s,box-shadow .2s,background .2s}
+.fl input:hover{background:rgba(255,255,255,.05)}
+.fl input:focus{outline:0;border-color:#00f0ff;background:rgba(0,240,255,.04);box-shadow:0 0 0 3px rgba(0,240,255,.14),0 0 18px rgba(0,240,255,.25)}
+.fl label{position:absolute;inset-inline-start:16px;top:14px;color:var(--mu);pointer-events:none;transition:all .18s;font-size:16px}
+.fl input:focus+label,.fl input:not(:placeholder-shown)+label{top:5px;font-size:11px;color:var(--cy);letter-spacing:.05em}
+.fl .vi{position:absolute;inset-inline-end:14px;top:50%;transform:translateY(-50%);width:20px;height:20px;opacity:0;transition:opacity .2s;pointer-events:none}
+.fl.ok .vi.y,.fl.bad .vi.n{opacity:1}.fl.ok input{border-color:rgba(16,185,129,.7)}.fl.bad input{border-color:rgba(255,51,102,.7)}
+.vi.y{color:var(--em)}.vi.n{color:var(--cr)}
+.fl.pw input{padding-inline-end:84px}.fl.pw .vi{inset-inline-end:46px}
+.eye{position:absolute;inset-inline-end:8px;top:50%;transform:translateY(-50%);width:34px;height:34px;display:grid;place-items:center;background:none;border:0;border-radius:8px;color:var(--mu);cursor:pointer;transition:color .2s,background .2s}
+.eye:hover,.eye[aria-pressed=true]{color:var(--cy);background:rgba(0,240,255,.1)}.eye:focus-visible{outline:2px solid var(--cy);outline-offset:1px}.eye svg{width:20px;height:20px}
+.pwm{display:flex;align-items:center;gap:10px;margin:-4px 0 10px}
+.pwt{flex:1;height:6px;border-radius:99px;background:rgba(148,163,184,.15);overflow:hidden}
+.pwt i{display:block;height:100%;width:0;border-radius:99px;transition:width .35s ease,background .35s ease;box-shadow:0 0 10px currentColor}
+.pwm span{font-size:12px;min-width:84px;text-align:end;color:var(--mu);font-weight:600}
+.cta{width:100%;margin-top:10px;background:linear-gradient(135deg,#6366f1,#00f0ff);color:#03050C;font-weight:800;font-size:16px;letter-spacing:.04em;padding:16px;border-radius:12px;border:none;cursor:pointer;box-shadow:0 10px 30px rgba(0,240,255,.4);display:flex;align-items:center;justify-content:center;gap:8px;transition:box-shadow .2s,transform .12s,filter .2s}
+.cta:hover{box-shadow:0 14px 44px rgba(0,240,255,.65);filter:brightness(1.08)}.cta:active{transform:scale(.97)}.cta:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.tab{display:flex;gap:6px;background:rgba(255,255,255,.04);border:1px solid rgba(148,163,184,.12);border-radius:14px;padding:4px;margin-bottom:16px}
+.tab .btn{flex:1;border:1px solid transparent;background:none;color:var(--mu);font-weight:600;border-radius:11px}
+.tab .btn:hover{background:rgba(0,240,255,.06);color:var(--tx)}
+.tab .btn.on{background:linear-gradient(135deg,rgba(0,240,255,.15),rgba(99,102,241,.15));border-color:rgba(0,240,255,.55);color:#00f0ff;box-shadow:0 0 18px rgba(0,240,255,.18)}
+.ocl{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu);text-align:center;margin-bottom:8px}
+.soc{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.soc .btn{flex-direction:column;gap:4px;padding:10px 4px;font-size:11px;min-height:60px}.soc .btn svg{width:22px;height:22px}
+.soc .neon{border:1px solid #00f0ff;color:#00f0ff;background:rgba(0,240,255,.08);box-shadow:0 0 12px rgba(0,240,255,.55),inset 0 0 10px rgba(0,240,255,.15);animation:ng 2.4s ease-in-out infinite}
+@keyframes ng{50%{box-shadow:0 0 22px rgba(0,240,255,.9),inset 0 0 14px rgba(0,240,255,.28)}}
+.dv{display:flex;align-items:center;gap:10px;color:var(--mu);font-size:12px;margin:16px 0 2px}.dv:before,.dv:after{content:"";flex:1;height:1px;background:rgba(148,163,184,.2)}
+.trust-badges{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px;margin-top:20px;padding-top:14px;border-top:1px solid rgba(148,163,184,.1);font-size:11px;color:var(--mu)}
+.trust-badges span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}.trust-badges span+span:before{content:"|";margin-inline-end:14px;opacity:.35}
+@media(max-width:480px){.gl{padding:26px 18px;border-radius:24px}.trust-badges span+span:before{display:none}}
+@media(prefers-reduced-motion:reduce){.soc .neon{animation:none}.pwt i{transition:none}}
+/* voice + analyzer */
+#wf{display:flex;align-items:center;justify-content:center;gap:3px;height:56px;background:rgba(0,0,0,.3);border-radius:12px;margin:8px 0}
+#wf i{width:5px;height:6px;border-radius:3px;background:linear-gradient(var(--cy),var(--in));transition:height .09s}
+.mic{width:64px;height:64px;border-radius:50%;padding:0;flex:none}.mic.rec{background:var(--cr);color:#fff;animation:pu 1s infinite}@keyframes pu{50%{box-shadow:0 0 0 12px rgba(255,51,102,.18)}}
+#dz{border:2px dashed rgba(0,240,255,.4);border-radius:16px;padding:22px;text-align:center;cursor:pointer;transition:background .2s,border-color .2s}
+#dz.hv{background:rgba(0,240,255,.1);border-color:var(--cy)}#pvw{max-width:100%;max-height:220px;border-radius:12px;margin-top:10px;display:block}
+iframe.pdfp{width:100%;height:240px;border:0;border-radius:12px;margin-top:10px;background:#fff}
+@media(prefers-reduced-motion:reduce){body:before,.pg,#spl svg,.mic.rec{animation:none}}
+/* header */
+.nb{justify-content:space-between;padding:8px 0}
+.bn{display:flex;align-items:center;gap:10px;background:none;border:0;padding:4px;cursor:pointer;color:inherit}
+.bn b{font-weight:800;font-size:18px;line-height:1;letter-spacing:.34em;background:linear-gradient(135deg,var(--cy),var(--in));-webkit-background-clip:text;background-clip:text;color:transparent}
+.nbr{display:flex;align-items:center;gap:8px}
+.fp{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:99px;border:1px solid var(--cy);background:rgba(0,240,255,.1);color:var(--cy);font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 0 14px rgba(0,240,255,.45);transition:box-shadow .2s,transform .12s}
+.fp:hover{box-shadow:0 0 24px rgba(0,240,255,.8)}.fp:active,.dots:active{transform:scale(.96)}
+.dots{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;border:1px solid var(--ln);background:rgba(148,163,184,.08);color:var(--tx);cursor:pointer}
+.dots:hover{background:rgba(148,163,184,.18)}.dots svg{width:22px;height:22px}
+.fp:focus-visible,.dots:focus-visible,.bn:focus-visible,.dli:focus-visible,.ac:focus-visible,.ft:focus-visible,.x:focus-visible{outline:2px solid var(--cy);outline-offset:2px}
+@media(max-width:380px){.bn b{letter-spacing:.2em;font-size:16px}.fp{padding:0 10px}}
+/* overlays */
+#mdl{position:fixed;inset:0;z-index:80}
+.ov{position:absolute;inset:0;background:rgba(2,4,10,.62)}
+.sh{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,calc(100% - 24px));max-height:calc(100dvh - 32px);overflow:auto;background:rgba(10,15,30,.97);border:1px solid rgba(0,240,255,.3);border-radius:24px;padding:20px;box-shadow:0 30px 80px rgba(0,0,0,.7),0 0 40px rgba(0,240,255,.12);animation:mi .22s ease}
+.sh.dr{left:auto;right:0;top:0;bottom:0;transform:none;height:100dvh;max-height:none;width:min(340px,88vw);border-radius:24px 0 0 24px;background:rgba(10,15,30,.78);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);padding-top:calc(16px + env(safe-area-inset-top));animation:ms .24s ease}
+@keyframes mi{from{opacity:0;transform:translate(-50%,-46%)}}
+@keyframes ms{from{transform:translateX(100%)}}
+@keyframes mb{from{transform:translateY(100%)}}
+@media(max-width:560px){.sh:not(.dr){top:auto;bottom:0;left:0;transform:none;width:100%;border-radius:24px 24px 0 0;max-height:90dvh;padding-bottom:calc(20px + env(safe-area-inset-bottom));animation:mb .24s ease}}
+@media(prefers-reduced-motion:reduce){.sh{animation:none}}
+.dh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.x{width:38px;height:38px;border-radius:10px;border:1px solid var(--ln);background:none;color:var(--mu);display:grid;place-items:center;cursor:pointer;flex:none}
+.dl{display:grid;gap:4px}
+.dli{display:flex;align-items:center;gap:12px;min-height:48px;padding:0 10px;border-radius:12px;border:0;background:none;color:var(--tx);text-align:start;cursor:pointer;font-size:15px}
+.dli:hover,.dli.on{background:color-mix(in srgb,var(--c) 14%,transparent)}
+.ic2{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c)}
+.dlo{width:100%;margin-top:14px}
+.acs{display:grid;gap:6px}
+.ac,.ft{display:flex;align-items:center;gap:12px;text-align:start;width:100%;padding:10px 12px;border-radius:14px;border:1px solid var(--ln);background:rgba(148,163,184,.06);cursor:pointer}
+.ac:hover,.ft:hover{background:rgba(0,240,255,.08);border-color:rgba(0,240,255,.4)}
+.ac small,.ft small{display:block;color:var(--mu);font-size:12px}
+.ft em{margin-inline-start:auto;font-style:normal;color:var(--cy);font-size:13px}.ft>svg{width:22px;height:22px;color:var(--cy)}
+.u3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.u3>div{background:rgba(148,163,184,.07);border-radius:12px;padding:10px}.u3 .num{font-size:22px}
+.wl{list-style:none;padding:0;margin:10px 0;display:grid;gap:10px}.wl li{display:flex;gap:10px;align-items:flex-start}.wl svg{color:var(--cy);margin-top:3px}
+.sh .cta{margin-top:14px}
+[id^=t-]{scroll-margin-top:76px}
+</style>
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<div id="app"></div><div id="toast" role="status"></div><div id="mdl" hidden></div>
+<div id="spl" aria-hidden="true"></div>
+<script>
+"use strict";
+// ---------- inline QR encoder (byte mode, ECC M then L, versions 1-40, no network) ----------
+const qrMatrix=(text)=>{
+ const ECC={M:[-1,10,16,26,18,24,16,18,22,22,26,30,22,22,24,24,28,28,26,26,26,26,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28],L:[-1,7,10,15,20,26,18,20,24,30,18,20,24,26,30,22,24,28,30,28,28,28,28,30,30,26,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30]},
+ BLK={M:[-1,1,1,1,2,2,4,4,4,5,5,5,8,9,9,10,10,11,13,14,16,17,17,18,20,21,23,25,26,28,29,31,33,35,37,38,40,43,45,47,49],L:[-1,1,1,1,1,1,2,2,2,2,4,4,4,4,4,6,6,6,6,7,8,8,9,9,10,12,12,12,13,14,15,16,17,18,19,19,20,21,22,24,25]},FB={L:1,M:0};
+ const raw=v=>{let r=(16*v+128)*v+64;if(v>=2){const a=(v/7|0)+2;r-=(25*a-10)*a-55;if(v>=7)r-=36}return r};
+ const cap=(v,e)=>(raw(v)>>3)-ECC[e][v]*BLK[e][v];
+ const bytes=[...new TextEncoder().encode(text)];let ver=0,ecl="";
+ find:for(const e of["M","L"])for(let v=1;v<=40;v++){if(8*bytes.length+4+(v<10?8:16)<=cap(v,e)*8){ver=v;ecl=e;break find}}
+ if(!ver)throw Error("Text too long for a QR code");
+ const bits=[],put=(x,n)=>{for(let i=n-1;i>=0;i--)bits.push((x>>>i)&1)};
+ put(4,4);put(bytes.length,ver<10?8:16);bytes.forEach(b=>put(b,8));
+ const dcap=cap(ver,ecl)*8;put(0,Math.min(4,dcap-bits.length));put(0,(8-bits.length%8)%8);
+ for(let p=0xEC;bits.length<dcap;p^=0xEC^0x11)put(p,8);
+ const data=[];for(let i=0;i<bits.length;i+=8)data.push(parseInt(bits.slice(i,i+8).join(""),2));
+ const mul=(x,y)=>{let z=0;for(let i=7;i>=0;i--){z=(z<<1)^((z>>>7)*0x11D);z^=((y>>>i)&1)*x}return z};
+ const rsDiv=d=>{const r=Array(d-1).fill(0);r.push(1);let root=1;for(let i=0;i<d;i++){for(let j=0;j<r.length;j++){r[j]=mul(r[j],root);if(j+1<r.length)r[j]^=r[j+1]}root=mul(root,2)}return r};
+ const rsRem=(dat,div)=>{const r=div.map(()=>0);for(const b of dat){const f=b^r.shift();r.push(0);div.forEach((c,i)=>r[i]^=mul(c,f))}return r};
+ const nb=BLK[ecl][ver],be=ECC[ecl][ver],rc=raw(ver)>>3,ns=nb-rc%nb,sl=rc/nb|0,div=rsDiv(be),blocks=[];
+ for(let i=0,k=0;i<nb;i++){const d=data.slice(k,k+sl-be+(i<ns?0:1));k+=d.length;const e=rsRem(d,div);if(i<ns)d.push(0);blocks.push(d.concat(e))}
+ const all=[];for(let i=0;i<blocks[0].length;i++)blocks.forEach((b,j)=>{if(i!=sl-be||j>=ns)all.push(b[i])});
+ const n=ver*4+17,M=Array.from({length:n},()=>Array(n).fill(false)),F=Array.from({length:n},()=>Array(n).fill(false));
+ const sf=(x,y,c)=>{M[y][x]=c;F[y][x]=true};
+ for(let i=0;i<n;i++){sf(6,i,i%2==0);sf(i,6,i%2==0)}
+ const finder=(x,y)=>{for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++){const d=Math.max(Math.abs(dx),Math.abs(dy)),xx=x+dx,yy=y+dy;if(xx>=0&&xx<n&&yy>=0&&yy<n)sf(xx,yy,d!=2&&d!=4)}};
+ finder(3,3);finder(n-4,3);finder(3,n-4);
+ const na=ver>1?(ver/7|0)+2:0,step=ver==32?26:na?Math.ceil((ver*4+4)/(na*2-2))*2:0,ap=[6];for(let p=n-7;ap.length<na;p-=step)ap.splice(1,0,p);
+ ap.forEach((a,i)=>ap.forEach((b,j)=>{if(!((i==0&&j==0)||(i==0&&j==na-1)||(i==na-1&&j==0)))for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++)sf(a+dx,b+dy,Math.max(Math.abs(dx),Math.abs(dy))!=1)}));
+ const fmt=mask=>{const d=FB[ecl]<<3|mask;let r=d;for(let i=0;i<10;i++)r=(r<<1)^((r>>>9)*0x537);const b=(d<<10|r)^0x5412,g=i=>((b>>>i)&1)!=0;
+  for(let i=0;i<=5;i++)sf(8,i,g(i));sf(8,7,g(6));sf(8,8,g(7));sf(7,8,g(8));for(let i=9;i<15;i++)sf(14-i,8,g(i));
+  for(let i=0;i<8;i++)sf(n-1-i,8,g(i));for(let i=8;i<15;i++)sf(8,n-15+i,g(i));sf(8,n-8,true)};
+ fmt(0);
+ if(ver>=7){let r=ver;for(let i=0;i<12;i++)r=(r<<1)^((r>>>11)*0x1F25);const b=ver<<12|r;for(let i=0;i<18;i++){const c=((b>>>i)&1)!=0,a=n-11+i%3,d=i/3|0;sf(a,d,c);sf(d,a,c)}}
+ for(let i=0,right=n-1;right>=1;right-=2){if(right==6)right=5;for(let v=0;v<n;v++)for(let j=0;j<2;j++){const x=right-j,y=((right+1)&2)==0?n-1-v:v;if(!F[y][x]&&i<all.length*8){M[y][x]=((all[i>>>3]>>>(7-(i&7)))&1)!=0;i++}}}
+ const MK=[(x,y)=>(x+y)%2==0,(x,y)=>y%2==0,(x,y)=>x%3==0,(x,y)=>(x+y)%3==0,(x,y)=>((x/3|0)+(y/2|0))%2==0,(x,y)=>x*y%2+x*y%3==0,(x,y)=>(x*y%2+x*y%3)%2==0,(x,y)=>((x+y)%2+x*y%3)%2==0];
+ const pen=m=>{let p=0;for(const rows of[m,m[0].map((_,x)=>m.map(r=>r[x]))])for(const r of rows){let run=1;for(let i=1;i<=n;i++){if(i<n&&r[i]==r[i-1])run++;else{if(run>=5)p+=run-2;run=1}}}
+  for(let y=0;y<n-1;y++)for(let x=0;x<n-1;x++)if(m[y][x]==m[y][x+1]&&m[y][x]==m[y+1][x]&&m[y][x]==m[y+1][x+1])p+=3;
+  const dk=m.flat().filter(Boolean).length,k=Math.ceil(Math.abs(dk*20-n*n*10)/(n*n))-1;return p+Math.max(0,k)*10};
+ let best=null,bp=1/0;
+ for(let mk=0;mk<8;mk++){const t=M.map(r=>r.slice());for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(!F[y][x]&&MK[mk](x,y))t[y][x]=!t[y][x];
+  const save=M.map(r=>r.slice());for(let y=0;y<n;y++)for(let x=0;x<n;x++)M[y][x]=t[y][x];fmt(mk);const fin=M.map(r=>r.slice()),p=pen(fin);if(p<bp){bp=p;best=fin}
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++)M[y][x]=save[y][x]}
+ return best};
+const qrSvg=(text,px=180)=>{const m=qrMatrix(text),n=m.length,q=4,s=n+q*2;let d="";for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(m[y][x])d+=`M${x+q} ${y+q}h1v1h-1z`;
+ return`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${s} ${s}" width="${px}" height="${px}" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="${s}" height="${s}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`};
+const BRAND="Qvmpxt",FOUNDER="M Maruf Chowdhury",STRIPE_LINKS={starter:"",growth:"",enterprise:"",starter_y:"",growth_y:"",enterprise_y:""}; // paste Stripe Payment Links to go live; empty = demo checkout
+const PLANS=[["starter",9,"Starter",300],["growth",29,"Growth",2000],["enterprise",99,"Enterprise",20000]];
+// price table [monthly, yearly] per currency
+const PR={starter:{usd:[9,89],bdt:[990,9900],btc:[0.00009,0.0009]},growth:{usd:[29,289],bdt:[2990,28900],btc:[0.0003,0.0028]},enterprise:{usd:[99,989],bdt:[9900,98900],btc:[0.001,0.01]}};
+const FEAT={starter:["300 Agent Runs","Basic Compliance Audits","Standard Support"],growth:["2,000 Agent Runs","E2EE Security","Visual Flow Builder","Multi-tenant Team Workspace"],enterprise:["20,000+ Runs","Unlimited Team RBAC","Dedicated API Gateway","Custom Webhooks"]};
+const MOB={bkash:["bKash"],nagad:["Nagad"],rocket:["Rocket"]},MOB_NUM={bkash:"",nagad:"",rocket:""}; // put your merchant numbers here to show them at checkout
+const CY={card:"usd",btc:"btc",mob:"bdt"},COMM=15;
+const $=(s,e=document)=>e.querySelector(s),$$=(s,e=document)=>[...e.querySelectorAll(s)];
+const L8=["en","bn","es","zh","ar","fr","de","ja"],L={};
+const LG=[...new Set([...L8,..."aa ab ae af ak am an as av ay az ba be bg bi bm bo br bs ca ce ch co cr cs cu cv cy da dv dz ee el eo et eu fa ff fi fj fo fy ga gd gl gn gu gv ha he hi ho hr ht hu hy hz ia id ie ig ii ik io is it iu jv ka kg ki kj kk kl km kn ko kr ks ku kv kw ky la lb lg li ln lo lt lu lv mg mh mi mk ml mn mr ms mt my na nb nd ne ng nl nn no nr nv ny oc oj om or os pa pi pl ps pt qu rm rn ro ru rw sa sc sd se sg si sk sl sm sn so sq sr ss st su sv sw ta te tg th ti tk tl tn to tr ts tt tw ty ug uk ur uz ve vi vo wa wo xh yi yo za zu ace ady ain ale alt arc arn arz ast awa ban bar bas bbc bej bem bho bik bin bjn bug byn ceb cgg chk chm chr chy ckb cop crh csb dar den dgr doi dsb dua dyo ebu efi eka ewo fan fil fon frc frr frs fur gaa gag gan gez gil gor grc gsw gwi hak haw hil hmn hsb hup iba ilo inh jbo kaa kab kac kam kbd kea kha kmb kok kos krc krl ksh lad lez lij lmo lol loz lua lun luo lus mad mag mai mak man mas mdf men mic min mni moh mos mwl myv nan nap nds new nia niu nog nso nus nyn osa pag pam pap pau pcm prg raj rap rar rof rom rup sad sah sat scn sco sdh seh ses shn sid sma smj smn sms snk srn suk syr tem teo tet tig tiv tlh tpi tum tvl tyv udm umb vai vec vep vun wae wal war wuu xal xog yao yap yue zap zen zgh zza pt-BR pt-PT zh-Hans zh-Hant zh-HK es-419 es-MX en-GB en-AU en-CA en-IN fr-CA fr-CH de-AT de-CH nl-BE sr-Latn bn-IN ar-EG ar-SA ur-IN pa-Arab ku-Arab".split(" ")])];
+const _ln={},_dn=(()=>{try{return new Intl.DisplayNames(["en"],{type:"language",fallback:"code"})}catch{return{of:c=>c}}})();const langName=c=>_ln[c]||(_ln[c]=(()=>{try{return _dn.of(c)||c}catch{return c}})());
+const RTLB=new Set("ar he fa ur ps sd ug yi dv ckb arz syr bej".split(" "));
+const isRtl=c=>{try{const l=new Intl.Locale(c),d=(l.getTextInfo?l.getTextInfo():l.textInfo||{}).direction;if(d)return d==="rtl"}catch{}return RTLB.has(String(c).split("-")[0])||/-(Arab|Hebr|Thaa|Syrc|Nkoo)$/.test(c)};
+const detect=()=>{for(const l of(navigator.languages||[navigator.language||"en"])){if(LG.includes(l))return l;const b=String(l).split("-")[0];if(LG.includes(b))return b}return"en"};
+const PK=(()=>{try{return JSON.parse(localStorage.getItem("qv_packs"))||{}}catch{return{}}})();
+const X={
+hi:{home:"होम",agents:"AI एजेंट",saas:"माइक्रो-SaaS",audit:"अनुपालन",pay:"बिलिंग",stats:"विश्लेषण",set:"सेटिंग्स",terms:"शर्तें",lang:"भाषा",logout:"साइन आउट",login:"लॉग इन",signup:"साइन अप",run:"चलाएँ"},
+pt:{home:"Início",agents:"Agentes de IA",saas:"Micro-SaaS",audit:"Conformidade",pay:"Faturamento",stats:"Análises",set:"Configurações",terms:"Termos",lang:"Idioma",logout:"Sair",login:"Entrar",signup:"Cadastrar",run:"Executar"},
+ru:{home:"Главная",agents:"ИИ-агенты",saas:"Микро-SaaS",audit:"Соответствие",pay:"Оплата",stats:"Аналитика",set:"Настройки",terms:"Условия",lang:"Язык",logout:"Выйти",login:"Войти",signup:"Регистрация",run:"Запустить"},
+tr:{home:"Ana sayfa",agents:"Yapay zekâ ajanları",saas:"Mikro-SaaS",audit:"Uyumluluk",pay:"Faturalama",stats:"Analitik",set:"Ayarlar",terms:"Koşullar",lang:"Dil",logout:"Çıkış yap",login:"Giriş yap",signup:"Kaydol",run:"Çalıştır"},
+it:{home:"Home",agents:"Agenti IA",saas:"Micro-SaaS",audit:"Conformità",pay:"Fatturazione",stats:"Analisi",set:"Impostazioni",terms:"Termini",lang:"Lingua",logout:"Esci",login:"Accedi",signup:"Registrati",run:"Esegui"},
+ko:{home:"홈",agents:"AI 에이전트",saas:"마이크로 SaaS",audit:"컴플라이언스",pay:"결제",stats:"분석",set:"설정",terms:"약관",lang:"언어",logout:"로그아웃",login:"로그인",signup:"가입",run:"실행"},
+id:{home:"Beranda",agents:"Agen AI",saas:"Micro-SaaS",audit:"Kepatuhan",pay:"Tagihan",stats:"Analitik",set:"Pengaturan",terms:"Ketentuan",lang:"Bahasa",logout:"Keluar",login:"Masuk",signup:"Daftar",run:"Jalankan"},
+ur:{home:"ہوم",agents:"اے آئی ایجنٹس",saas:"مائیکرو SaaS",audit:"تعمیل",pay:"بلنگ",stats:"تجزیات",set:"ترتیبات",terms:"شرائط",lang:"زبان",logout:"سائن آؤٹ",login:"لاگ ان",signup:"سائن اپ",run:"چلائیں"},
+fa:{home:"خانه",agents:"عامل‌های هوش مصنوعی",saas:"ریزسرویس SaaS",audit:"انطباق",pay:"صورت‌حساب",stats:"تحلیل‌ها",set:"تنظیمات",terms:"شرایط",lang:"زبان",logout:"خروج",login:"ورود",signup:"ثبت‌نام",run:"اجرا"},
+he:{home:"בית",agents:"סוכני בינה מלאכותית",saas:"מיקרו-SaaS",audit:"ציות",pay:"חיוב",stats:"אנליטיקה",set:"הגדרות",terms:"תנאים",lang:"שפה",logout:"התנתקות",login:"התחברות",signup:"הרשמה",run:"הרץ"},
+vi:{home:"Trang chủ",agents:"Tác tử AI",saas:"Micro-SaaS",audit:"Tuân thủ",pay:"Thanh toán",stats:"Phân tích",set:"Cài đặt",terms:"Điều khoản",lang:"Ngôn ngữ",logout:"Đăng xuất",login:"Đăng nhập",signup:"Đăng ký",run:"Chạy"},
+sw:{home:"Mwanzo",agents:"Mawakala wa AI",saas:"Micro-SaaS",audit:"Uzingatiaji",pay:"Malipo",stats:"Uchanganuzi",set:"Mipangilio",terms:"Masharti",lang:"Lugha",logout:"Toka",login:"Ingia",signup:"Jisajili",run:"Endesha"},
+nl:{home:"Home",agents:"AI-agents",saas:"Micro-SaaS",audit:"Compliance",pay:"Facturatie",stats:"Analyse",set:"Instellingen",terms:"Voorwaarden",lang:"Taal",logout:"Uitloggen",login:"Inloggen",signup:"Registreren",run:"Uitvoeren"},
+pl:{home:"Strona główna",agents:"Agenci AI",saas:"Mikro-SaaS",audit:"Zgodność",pay:"Rozliczenia",stats:"Analityka",set:"Ustawienia",terms:"Warunki",lang:"Język",logout:"Wyloguj",login:"Zaloguj",signup:"Zarejestruj",run:"Uruchom"}};
+
+`home|Home|হোম|Inicio|首页|الرئيسية|Accueil|Start|ホーム
+agents|AI Agents|AI এজেন্ট|Agentes IA|AI 智能体|وكلاء الذكاء|Agents IA|KI-Agenten|AIエージェント
+saas|Micro-SaaS|মাইক্রো-SaaS|Micro-SaaS|微型SaaS|SaaS مصغّر|Micro-SaaS|Micro-SaaS|マイクロSaaS
+audit|Compliance|কমপ্লায়েন্স|Cumplimiento|合规|الامتثال|Conformité|Compliance|コンプライアンス
+pay|Billing|বিলিং|Facturación|账单|الفوترة|Facturation|Abrechnung|請求
+stats|Analytics|অ্যানালিটিক্স|Analítica|分析|التحليلات|Analyses|Analytik|分析
+set|Settings|সেটিংস|Ajustes|设置|الإعدادات|Réglages|Einstellungen|設定
+terms|Terms|শর্তাবলী|Términos|条款|الشروط|Conditions|Bedingungen|利用規約
+market|Marketplace|মার্কেটপ্লেস|Mercado|应用市场|السوق|Marketplace|Marktplatz|マーケット
+tag|One name. Every product you will ever build.|একটি নাম। আপনার সব ভবিষ্যৎ প্রোডাক্ট।|Un nombre. Todos tus futuros productos.|一个名字，承载你未来所有产品。|اسم واحد لكل منتجاتك القادمة.|Un nom. Tous vos futurs produits.|Ein Name. Alle deine künftigen Produkte.|ひとつの名前で、これから作るすべてのプロダクトを。
+sub|AI agents, 60-second quote links and compliance audits in one place.|এক জায়গায় AI এজেন্ট, ৬০ সেকেন্ডের কোটেশন লিংক ও কমপ্লায়েন্স অডিট।|Agentes IA, cotizaciones en 60 segundos y auditorías en un solo lugar.|AI 智能体、60 秒报价链接和合规审计，一站完成。|وكلاء ذكاء اصطناعي وعروض أسعار خلال 60 ثانية ومراجعة امتثال في مكان واحد.|Agents IA, devis en 60 secondes et audits de conformité au même endroit.|KI-Agenten, Angebote in 60 Sekunden und Compliance-Prüfungen an einem Ort.|AIエージェント、60秒の見積リンク、コンプライアンス監査をひとつに。
+lang|Language|ভাষা|Idioma|语言|اللغة|Langue|Sprache|言語
+run|Run|চালান|Ejecutar|运行|تشغيل|Lancer|Starten|実行
+make|Create link|লিংক বানান|Crear enlace|生成链接|أنشئ الرابط|Créer le lien|Link erstellen|リンク作成
+scan|Run audit|অডিট চালান|Auditar|开始审计|ابدأ المراجعة|Lancer l'audit|Prüfung starten|監査実行
+paynow|Pay|পে করুন|Pagar|支付|ادفع|Payer|Bezahlen|支払う
+logout|Sign out|সাইন আউট|Salir|退出|تسجيل الخروج|Déconnexion|Abmelden|ログアウト
+install|Install the app|অ্যাপ ইনস্টল করুন|Instala la app|安装应用|ثبّت التطبيق|Installer l'app|App installieren|アプリをインストール
+signup|Sign up|সাইন আপ|Registrarse|注册|إنشاء حساب|S'inscrire|Registrieren|新規登録
+login|Log in|লগ ইন|Entrar|登录|تسجيل الدخول|Connexion|Anmelden|ログイン
+voice|Voice command|ভয়েস কমান্ড|Comando de voz|语音指令|أمر صوتي|Commande vocale|Sprachbefehl|音声コマンド
+analyzer|Document analyzer|ডকুমেন্ট বিশ্লেষক|Analizador|文档分析|محلل المستندات|Analyseur|Analysator|ドキュメント解析`.split("\n").forEach(r=>{const a=r.split("|");L[a[0]]=a.slice(1)});
+const P={Bot:'<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>',ShieldCheck:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',Zap:'<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',Globe:'<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/>',Share2:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/>',Wallet:'<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',Bitcoin:'<path d="M11.767 19.089c4.924.868 6.14-6.025 1.216-6.894m-1.216 6.894L5.86 18.047m5.908 1.042-.347 1.97m1.563-8.864c4.924.869 6.14-6.025 1.215-6.893m-1.215 6.893-3.94-.694m5.155-6.2L8.29 4.26m5.908 1.042.348-1.97M7.48 20.364l3.126-17.727"/>',Lock:'<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',Activity:'<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',Users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',Layers:'<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65M22 12.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',Layout:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M9 21V9"/>',ChevronRight:'<path d="m9 18 6-6-6-6"/>',Terminal:'<path d="M4 17l6-6-6-6M12 19h8"/>',Cpu:'<rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/>',Database:'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5M3 12a9 3 0 0 0 18 0"/>',Award:'<circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/>',Settings:'<path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',Code:'<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>',ThumbsUp:'<path d="M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/>',MessageSquare:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',GitFork:'<circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9M12 12v3"/>',Key:'<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/>',FileText:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8"/>',CheckCircle:'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',XCircle:'<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>',Mic:'<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/>',Upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>'};
+P.Shield=P.ShieldCheck.split('<path d="m9')[0];P.Share=P.Share2;
+Object.assign(P,{
+Tag:'<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
+Smartphone:'<rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/>',
+Download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+Eye:'<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>',
+EyeOff:'<path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c4.5 0 8.3 2.9 9.94 7a10.75 10.75 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2.06 12c1.64 4.1 5.44 7 9.94 7a10.4 10.4 0 0 0 5.39-1.61"/><path d="m2 2 20 20"/><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>',
+Github:'<path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/>',
+Mail:'<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+Google:'<path d="M19 7.5A8 8 0 1 0 20 12h-7.5"/>',
+Fingerprint:'<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>'});
+Object.assign(P,{More:'<circle cx="12" cy="5" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="19" r="1.6" fill="currentColor"/>',Close:'<path d="M18 6 6 18M6 6l12 12"/>'});
+const I=n=>`<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
+// Qvmpxt logo: two interlocking hexagons forming an infinite loop, cyan to indigo
+const LOGO=(sz=32,id="lg")=>`<svg class="lgs" width="${sz}" height="${sz}" viewBox="0 0 48 48" fill="none" aria-hidden="true"><defs><linearGradient id="${id}a" x1="4" y1="4" x2="44" y2="44"><stop stop-color="#00f0ff"/><stop offset="1" stop-color="#6366f1"/></linearGradient><linearGradient id="${id}b" x1="44" y1="4" x2="4" y2="44"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#00f0ff"/></linearGradient></defs>
+<polygon points="24,5 40.45,14.5 40.45,33.5 24,43 7.55,33.5 7.55,14.5" stroke="url(#${id}a)" stroke-width="3.2" stroke-linejoin="round"/>
+<polygon points="43,24 33.5,40.45 14.5,40.45 5,24 14.5,7.55 33.5,7.55" stroke="url(#${id}b)" stroke-width="3.2" stroke-linejoin="round" opacity=".92"/>
+<polygon points="24,16 30.9,20 30.9,28 24,32 17.1,28 17.1,20" fill="url(#${id}a)"/></svg>`;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch{return d}},sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+const uid=()=>Math.random().toString(36).slice(2,9),sleep=ms=>new Promise(r=>setTimeout(r,ms)),money=n=>"$"+Number(n).toFixed(2);
+const H=async s=>{try{return[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)))].map(b=>b.toString(16).padStart(2,"0")).join("")}catch{return btoa(unescape(encodeURIComponent(s)))}};
+const seed=()=>({agents:[{id:"a1",name:"Market Researcher",task:"Find 3 trends and summarize them."},{id:"a2",name:"Support Triage",task:"Classify urgency and draft a reply."},{id:"a3",name:"Invoice Chaser",task:"Write a polite overdue reminder."}],shares:{},
+ feed:[{id:"p1",by:"Ava Chen",type:"agent",t:"Lead Qualifier",x:"Scores inbound leads and drafts a first reply.",data:{name:"Lead Qualifier",task:"Score the lead 1-10 and draft a first reply."},likes:["x1","x2"],cm:[{by:"Noor",x:"Forking this for our sales team."}],forks:3},
+ {id:"p2",by:"Rafi Ahmed",type:"quote",t:"Brand kit · $480",x:"A 60-second quote link for a design package.",data:{title:"Brand kit",client:"Studio Nine",item:"Logo + palette",qty:1,price:480},likes:["x3"],cm:[],forks:1}],
+ team:[],keys:[],hooks:[],logs:[],market:[{id:"m1",by:"Ava Chen",email:"seed@qvmpxt.demo",name:"Lead Qualifier Pro",task:"Score the lead 1-10 and draft a first reply.",buy:29,rent:5,sales:0},{id:"m2",by:"Rafi Ahmed",email:"seed@qvmpxt.demo",name:"Contract Risk Reader",task:"List risky clauses and suggest safer wording.",buy:49,rent:9,sales:0},{id:"m3",by:"Noor Hasan",email:"seed@qvmpxt.demo",name:"Bangla Support Replier",task:"Draft a polite support reply in Bangla and English.",buy:19,rent:0,sales:0}],orders:[],txids:[],cycle:"m",plan:"free",used:0,tokens:0,paid:[],e2ee:false});
+let U=ld("qv_u",{}),D=Object.assign(seed(),ld("qv_d",{}));
+const save=()=>sv("qv_d",D);
+const S={lang:ld("qv_l",detect()),u:null,role:"Admin",sel:"growth",method:"card",tax:0,rate:100000,cycle:"m",mob:"bkash",keys:{},prov:"OpenAI",flow:{n:[],e:[],sel:null},timers:[],evt:null,am:"up",vlog:[],az:null};
+try{const s=ld("qv_s",null);if(s&&JSON.parse(atob(s.tok.split(".")[0])).x>Date.now()&&U[s.e])S.u=U[s.e]}catch{}
+const hasLang=c=>L8.includes(c)||!!X[c]||!!PK[c];
+const t=k=>{const a=L[k];for(const c of[S.lang,String(S.lang).split("-")[0]]){const v=(PK[c]&&PK[c][k])||(X[c]&&X[c][k])||(a&&L8.includes(c)&&a[L8.indexOf(c)]);if(v)return esc(v)}return esc(a?a[0]:k)};
+const loadPack=l=>{if(!/^https?:$/.test(location.protocol)||hasLang(l))return;fetch("/api/i18n/"+encodeURIComponent(l)).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.strings&&S.lang===l){PK[l]=j.strings;sv("qv_packs",PK);route()}}).catch(()=>{})};
+async function importPack(f){if(!f)return;if(f.size>200000)throw Error("Pack is larger than 200 KB");let j;try{j=JSON.parse(await f.text())}catch{throw Error("Not valid JSON")}
+ const lang=String(j.lang||"");if(!/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$/.test(lang))throw Error('Pack needs a "lang" code such as "pt-BR"');
+ const out={};for(const[k,v]of Object.entries(j.strings||{}))if(L[k]&&typeof v==="string"&&v.length<=200)out[k]=v;
+ if(!Object.keys(out).length)throw Error("No known UI keys found. Export the English pack first.");
+ PK[lang]=out;sv("qv_packs",PK);if(!LG.includes(lang))LG.push(lang);S.lang=lang;sv("qv_l",lang);toast(Object.keys(out).length+" strings loaded for "+lang);route()}
+const toast=m=>{const e=$("#toast");e.textContent=m;e.style.display="block";clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.display="none",3400)};
+const guard=async f=>{try{return await f()}catch(e){toast(e&&e.message?e.message:"Something went wrong");return null}};
+const can=a=>S.role==="Admin"||(S.role==="Editor"&&a!=="invite"&&a!=="roles"),need=a=>{if(!can(a))throw Error(`Role ${S.role} cannot ${a}`)};
+const inp=(id,ph,ty="text",v="")=>`<div class="r"><input id="${id}" type="${ty}" placeholder="${ph}" value="${esc(v)}"></div>`;
+const fld=(id,label,ty,v,ac)=>`<div class="fl" data-v="${id}"><input id="${id}" type="${ty}" placeholder=" " value="${esc(v||"")}" autocomplete="${ac||"off"}"><label for="${id}">${label}</label><span class="vi y">${I("CheckCircle")}</span><span class="vi n">${I("XCircle")}</span></div>`;
+const dl=(n,d,ty)=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([d],{type:ty}));a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),999)};
+const cp=u=>{try{navigator.clipboard.writeText(u).then(()=>toast("Copied"),()=>toast(u))}catch{toast(u)}};
+const log=s=>{D.logs.unshift(new Date().toLocaleTimeString()+"  "+s);D.logs.length=Math.min(D.logs.length,60);save();const e=$("#lgr");if(e)e.textContent=D.logs.join("\n")};
+
+// ---------- crypto helpers: E2EE (AES-256-GCM), TOTP (RFC 6238), PDF ----------
+async function enc(tx){const k=await crypto.subtle.generateKey({name:"AES-GCM",length:256},true,["encrypt","decrypt"]),iv=crypto.getRandomValues(new Uint8Array(12)),c=await crypto.subtle.encrypt({name:"AES-GCM",iv},k,new TextEncoder().encode(tx));return{len:c.byteLength,hex:[...new Uint8Array(c).slice(0,16)].map(b=>b.toString(16).padStart(2,"0")).join(""),dec:async()=>new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM",iv},k,c))}}
+async function totp(sec,tm=Date.now()){const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(sec),{name:"HMAC",hash:"SHA-1"},false,["sign"]),b=new DataView(new ArrayBuffer(8));b.setUint32(4,Math.floor(tm/3e4));const h=new Uint8Array(await crypto.subtle.sign("HMAC",k,b.buffer)),o=h[19]&15;return String(((h[o]&127)<<24|h[o+1]<<16|h[o+2]<<8|h[o+3])%1e6).padStart(6,"0")}
+function pdf(lines){const e=s=>s.replace(/[^\x20-\x7E]/g,"?").replace(/[\\()]/g,"\\$&"),c="BT /F1 12 Tf 50 780 Td 18 TL "+lines.map(l=>"("+e(l)+") Tj T*").join(" ")+" ET";
+ const o=["<</Type/Catalog/Pages 2 0 R>>","<</Type/Pages/Kids[3 0 R]/Count 1>>","<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>","<</Length "+c.length+">>\nstream\n"+c+"\nendstream","<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>"];
+ let s="%PDF-1.4\n";const x=[];o.forEach((b,i)=>{x.push(s.length);s+=(i+1)+" 0 obj\n"+b+"\nendobj\n"});const r=s.length;
+ return s+"xref\n0 6\n0000000000 65535 f \n"+x.map(n=>String(n).padStart(10,"0")+" 00000 n \n").join("")+"trailer\n<</Size 6/Root 1 0 R>>\nstartxref\n"+r+"\n%%EOF"}
+
+// ---------- embedded mock API (no network) ----------
+const lim=()=>({free:50,starter:300,growth:2000,enterprise:20000})[D.plan]||50;
+const API={
+ async run(id,input){await sleep(400+Math.random()*600);const a=D.agents.find(x=>x.id===id);if(!a)throw Error("Agent not found");if(a.rentUntil&&Date.now()>a.rentUntil)throw Error("Rental expired. Rent it again in the Marketplace.");if(!input.trim())throw Error("Type an input first");if(D.used>=lim())throw Error("Run limit reached. Upgrade in Billing.");
+  const tk=Math.ceil((a.task.length+input.length)/4)+120+(Math.random()*80|0);D.used++;D.tokens+=tk;save();
+  return{tokens:tk,out:`${a.name} via ${S.keys[S.prov]?S.prov+" (key connected, simulated call)":"built-in simulator"}\n\nInput: "${input.slice(0,120)}"\n\n1) Parsed the request\n2) Applied the task: ${a.task}\n3) Result: a short structured answer is ready to send.`}},
+ async audit(rows){await sleep(300);if(!Array.isArray(rows)||!rows.length)throw Error("Provide a JSON array with at least one record");
+  const am=rows.map(x=>+x.amount||0),mean=am.reduce((a,b)=>a+b,0)/am.length,sd=Math.sqrt(am.reduce((a,b)=>a+(b-mean)**2,0)/am.length)||1,seen=new Set(),f=[];
+  rows.forEach((x,i)=>{const add=(rule,sev,d)=>f.push({n:i+1,id:x.id,rule,sev,d}),a=+x.amount||0;
+   if(seen.has(x.id))add("duplicate-id","high","Same id appears twice");seen.add(x.id);
+   if(a>1e4&&!x.approvedBy)add("approval-required","high","Over 10,000 without approver");else if(a>1e3&&!x.approvedBy)add("missing-approver","medium","No approver on file");
+   const d=new Date(x.date);if(!isNaN(d)&&[0,6].includes(d.getUTCDay()))add("weekend-entry","low","Posted on a weekend");
+   const z=(a-mean)/sd;if(Math.abs(z)>1.9)add("ai-anomaly","high",`${z.toFixed(1)} std devs from average`)});
+  const rk={high:3,medium:2,low:1},m=rows.map((_,i)=>{const w=f.filter(x=>x.n===i+1).sort((a,b)=>rk[b.sev]-rk[a.sev])[0];return w?w.sev:""});
+  return{checked:rows.length,f,m,score:Math.min(100,f.reduce((s,x)=>s+({high:25,medium:12,low:4}[x.sev]),0))}}};
+
+// ---------- pages ----------
+const NAV=[["home","Layout","#00f0ff"],["agents","Bot","#818cf8"],["market","Tag","#a78bfa"],["saas","Share2","#10b981"],["audit","ShieldCheck","#f59e0b"],["pay","Wallet","#f7931a"],["stats","Activity","#22d3ee"],["set","Settings","#c4b5fd"],["terms","Award","#ff3366"]];
+const VEC=[["Bot","c1","agents","Module 1 · Voice commands, document OCR analyzer, visual flow builder and live research agents."],["Tag","c5","market","Module 2 · List, rent or buy AI workflows. The 15% platform commission is routed automatically."],["Wallet","c4","pay","Module 3 · Card, Bitcoin and bKash / Nagad / Rocket checkout with PDF invoices."],["Lock","c6","set","Module 4 · AES-256-GCM encryption toggle, TOTP MFA and passkey enrollment."],["Code","c1","stats","Module 5 · API key vault, HMAC webhook tester and sitemap tools with JSON-LD."],["Share2","c2","saas","Send a branded quote in 60 seconds. Every view invites a new user."],["ShieldCheck","c3","audit","Rule checks plus anomaly detection, with optional end-to-end encryption."]];
+const FLY=[["Database","Agents create data","Every agent run produces usage data."],["ShieldCheck","Data feeds audits","Usage data trains rules and anomaly checks."],["Share2","Audits build trust","Trusted records go into shareable quote links."],["Users","Links bring users","Each recipient sees Powered by "+BRAND+" and can join."]];
+const NT=[["Trigger","#f59e0b"],["Research","#00f0ff"],["Agent","#818cf8"],["Filter","#10b981"],["Notify","#ff3366"],["Webhook","#f7931a"]],NM=["Event received","Crawled 3 sources","Agent drafted a result","Passed 2 of 3 items","Notification queued","POST sent, 200 OK"];
+const VCMD=["Run Market Researcher on electric vehicle trends","Run Support Triage on a late delivery complaint","Run Invoice Chaser for invoice 1042"];
+const feed=()=>D.feed.map(p=>`<div class="card c${p.type==="agent"?1:2}" style="margin:10px 0"><div class="r" style="align-items:center;margin:0"><span class="av">${esc(p.by[0])}</span><b style="flex:1 1 auto">${esc(p.by)}</b><span class="tg low" style="flex:none">${p.type}</span></div><b>${esc(p.t)}</b><p class="mu" style="margin:4px 0">${esc(p.x)}</p>
+ <div class="r"><button class="btn ${p.likes.includes(S.u.email)?"on":""}" data-a="like" data-id="${p.id}" aria-label="Like" style="--c:var(--em)">${I("ThumbsUp")}${p.likes.length}</button><button class="btn" data-a="cm" data-id="${p.id}" aria-label="Comment" style="color:var(--in)">${I("MessageSquare")}${p.cm.length}</button><button class="btn" data-a="fork" data-id="${p.id}" aria-label="Fork" style="color:var(--am)">${I("GitFork")}${p.forks}</button></div>
+ ${p.cm.map(c=>`<p class="mu" style="margin:2px 0"><b>${esc(c.by)}</b> ${esc(c.x)}</p>`).join("")}<div class="r" id="ci${p.id}" hidden><input placeholder="Write a comment"><button class="btn" data-a="send" data-id="${p.id}">${I("ChevronRight")}</button></div></div>`).join("");
+const trk=()=>`<table><tr><th>Link</th><th>Views</th><th>Sign-ups</th></tr>${Object.values(D.shares).map(s=>`<tr><td><a href="#/q/${s.id}" style="color:var(--mi)">${esc(s.title)}</a></td><td>${s.views}</td><td>${s.signups}</td></tr>`).join("")||`<tr><td colspan="3" class="mu">No links yet. Create one.</td></tr>`}</table>`;
+const fsvg=()=>{const f=S.flow,pos=i=>[20+(i%4)*145,16+((i/4)|0)*76];return`<svg viewBox="0 0 600 ${Math.max(170,40+Math.ceil(f.n.length/4)*76)}" style="width:100%;background:rgba(0,0,0,.3);border-radius:12px"><defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L8 4L0 8z" fill="#94a3b8"/></marker></defs>
+ ${f.n.map((n,i)=>{const[x,y]=pos(i),c=NT[n][1];return`<g class="nd" data-a="nd" data-id="${i}" transform="translate(${x},${y})"><rect width="120" height="50" rx="12" fill="${c}22" stroke="${c}" stroke-width="${f.sel===i?4:1.5}"/><text x="60" y="30" text-anchor="middle" fill="#f1f5f9" font-size="14">${NT[n][0]} ${i+1}</text></g>`}).join("")}
+ ${f.e.map(([a,b])=>{const p=pos(a),q=pos(b),dx=q[0]-p[0],dy=q[1]-p[1],l=Math.hypot(dx,dy)||1,k=Math.min(64,l/2.2)/l;return`<line x1="${p[0]+60+dx*k}" y1="${p[1]+25+dy*k}" x2="${q[0]+60-dx*k}" y2="${q[1]+25-dy*k}" stroke="#94a3b8" stroke-width="2" marker-end="url(#ar)" style="pointer-events:none"/>`}).join("")}</svg>`};
+const fmtC=(cy,n)=>cy==="btc"?String(+Number(n).toFixed(8))+" BTC":cy==="bdt"?"৳"+Number(n).toLocaleString("en-US",{maximumFractionDigits:2}):"$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:n%1?2:0,maximumFractionDigits:2});
+const savePct=(id,cy)=>Math.round((1-PR[id][cy][1]/(PR[id][cy][0]*12))*100);
+const txOk=s=>/^[A-Z0-9]{8,12}$/.test(s);
+const split=g=>{const c=Math.round(g*100),f=Math.round(c*COMM/100);return{gross:c/100,fee:f/100,net:(c-f)/100}};
+const P1=()=>{const p=PLANS.find(x=>x[0]===S.sel),cy=CY[S.method],ci=S.cycle==="y"?1:0,base=PR[p[0]][cy][ci],d=cy==="btc"?8:2,tax=+(base*S.tax/100).toFixed(d);return{p,cy,tx:S.tax,sub:base,tax,tot:+(base+tax).toFixed(d),usd:+(PR[p[0]].usd[ci]*(1+S.tax/100)).toFixed(2)}};
+const sitemapXml=(base,extra)=>{const b=base.replace(/\/+$/,""),d=new Date().toISOString().slice(0,10),u=[["/","1.0"],...extra.map(x=>[x,"0.6"])];return'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+u.map(x=>`  <url><loc>${esc(b+x[0])}</loc><lastmod>${d}</lastmod><priority>${x[1]}</priority></url>`).join("\n")+"\n</urlset>"};
+const vlog=()=>S.vlog.length?S.vlog.join("\n\n"):"Tap the microphone and speak a command. Try: “"+VCMD[0]+"”.";
+const payBody=()=>{const c=P1(),cy=c.cy,ci=S.cycle==="y",sk=S.sel+(ci?"_y":""),btc=c.tot.toFixed(8);return`
+ <div class="r" style="margin-top:14px;align-items:center"><button class="btn ${S.method==="card"?"on":""}" data-a="meth" data-id="card">${I("Lock")}USD · Card</button><button class="btn c4 ${S.method==="btc"?"on":""}" data-a="meth" data-id="btc">${I("Bitcoin")}Bitcoin · Lightning</button><button class="btn c2 ${S.method==="mob"?"on":""}" data-a="meth" data-id="mob">${I("Smartphone")}BDT · bKash / Nagad / Rocket</button><label class="mu" style="flex:0 1 auto">Tax % <input data-c="tax" type="number" min="0" max="40" value="${S.tax}" style="width:80px"></label></div>
+ <div class="card c4"><p style="margin-top:0">${c.p[2]} · ${ci?"yearly":"monthly"} · ${fmtC(cy,c.sub)} + tax ${fmtC(cy,c.tax)} = <b>${fmtC(cy,c.tot)}</b></p>
+ ${S.method==="card"?`${inp("cn","Card number","text","4242 4242 4242 4242")}<div class="r"><input id="cx" placeholder="MM/YY" value="12/30"><input id="cv" placeholder="CVC" value="123"></div><button class="btn pri" data-a="card">${I("Lock")}${t("paynow")} ${fmtC(cy,c.tot)}</button><p class="mu">${STRIPE_LINKS[sk]?"Secure Stripe Checkout opens in a new tab.":"Demo checkout: no card is charged. Add Stripe Payment Links in the code to go live."}</p>`
+ :S.method==="btc"?`${inp("bw","Bitcoin address or Lightning invoice")}<p class="mu" id="bx"></p><div id="bq" style="background:#fff;padding:10px;border-radius:12px;display:inline-block;min-width:60px" hidden></div><div class="r"><button class="btn c4" data-a="btcpaid">${I("CheckCircle")}Confirm payment received (demo)</button><button class="btn" data-a="btccp">${I("Wallet")}Copy invoice URI</button></div>`
+ :`<div class="r">${Object.keys(MOB).map(p=>`<button class="btn ${S.mob===p?"on":""}" data-a="mobp" data-id="${p}">${MOB[p][0]}</button>`).join("")}</div><p class="mu">${MOB_NUM[S.mob]?`Send ${fmtC("bdt",c.tot)} to <b>${esc(MOB_NUM[S.mob])}</b> with ${MOB[S.mob][0]}, then paste the TxID below.`:`Demo mode: no merchant number is configured. Add yours to MOB_NUM in the code to go live.`}</p>${inp("tx","Transaction ID (TxID)")}<p class="mu" id="txs"></p><button class="btn pri" data-a="mobpay">${I("CheckCircle")}Confirm payment (format check only)</button>`}</div>`};
+const pg={
+home:()=>`<section class="hero"><h1>${t("tag")}</h1><p>${t("sub")}</p><div class="r" style="max-width:420px"><button class="btn pri" data-go="agents">${I("Bot")}${t("agents")}</button><button class="btn" data-go="pay">${I("Wallet")}${t("pay")}</button></div></section>
+ ${S.evt?`<div class="card c5 r" style="align-items:center;justify-content:space-between"><span>${I("Layout")} ${t("install")}</span><button class="btn pri" data-a="inst">${I("Zap")}${t("install")}</button></div>`:""}
+ <div class="g">${VEC.map(v=>`<div class="card ${v[1]}"><div class="ic">${I(v[0])}</div><b>${t(v[2])}</b><p class="mu">${v[3]}</p><button class="btn" data-go="${v[2]}">${I("ChevronRight")}${t(v[2])}</button></div>`).join("")}</div>
+ <h2 style="color:var(--mi)">${I("Users")} Community</h2><div class="card c5"><div class="r" style="align-items:center;margin:0"><select id="pk">${D.agents.map(a=>`<option value="agent:${a.id}">Agent: ${esc(a.name)}</option>`).join("")}${Object.values(D.shares).map(s=>`<option value="quote:${s.id}">Quote: ${esc(s.title)}</option>`).join("")}</select><button class="btn pri" data-a="pub">${I("Share2")}Publish to feed</button></div></div><div id="feed">${feed()}</div>
+ <h2 style="color:var(--in)">${I("Cpu")} Flywheel</h2><div class="r">${FLY.map((f,i)=>`<button class="btn c${i+1}" data-a="fly" data-id="${i}">${I(f[0])}${f[1]}</button>`).join("")}</div><p class="mu" id="flyd">${FLY[0][2]}</p>
+ <div class="g">${[["Users",12840,"Active Sovereign Users"],["Bot",96210,"Processed Engine Runs"],["ShieldCheck",5412,"Audits Completed"],["Share2",31200,"Quote Links Issued"]].map(s=>`<div class="card c5">${I(s[0])}<div class="num" data-n="${s[1]}">0</div><div class="mu">${s[2]}</div></div>`).join("")}</div>`,
+agents:()=>`<h2>${I("Bot")} ${t("agents")}</h2><div class="g"><div class="card c1"><b>${I("Key")} Model providers</b><div class="r"><select id="pv2" data-c="prov">${["OpenAI","Claude","DeepSeek"].map(p=>`<option ${S.prov===p?"selected":""}>${p}</option>`).join("")}</select><input id="kv" type="password" autocomplete="off" placeholder="API key (kept in memory only)"><button class="btn" data-a="ks">Connect</button></div><div id="kst">${["OpenAI","Claude","DeepSeek"].map(p=>`<span class="bd">${S.keys[p]?"●":"○"} ${p}</span>`).join("")}</div>
+ <select id="ag" style="margin-top:10px">${D.agents.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join("")}</select><div class="r"><textarea id="ai" rows="3" placeholder="Your input"></textarea></div><button class="btn pri" data-a="run">${I("Zap")}${t("run")}</button><div class="o" id="ao" hidden></div></div>
+ <div class="card c1"><b>${I("Terminal")} Create agent</b>${inp("an2","Name")}<div class="r"><textarea id="at" rows="3" placeholder="What should it do?"></textarea></div><button class="btn" data-a="mk">${I("Bot")}Create agent</button><p class="mu">Runs: ${D.used}/${lim()} · Tokens: ${D.tokens}</p></div></div>
+ <h2 id="t-voice">${I("Mic")} ${t("voice")}</h2><div class="card c6"><div class="r" style="align-items:center;flex-wrap:nowrap"><button class="btn mic ${S.vi?"rec":""}" data-a="mic" id="micb" aria-label="Tap to speak">${I("Mic")}</button><div style="flex:1 1 auto"><b id="vst">${S.vi?"Listening…":"Tap to speak"}</b><div class="mu">Simulated speech recognition. No microphone is accessed.</div></div></div><div id="wf">${Array.from({length:28},()=>"<i></i>").join("")}</div><div class="o" id="vlg">${esc(vlog())}</div></div>
+ <h2 id="t-ocr">${I("Upload")} ${t("analyzer")}</h2><div class="card c1"><div id="dz" role="button" tabindex="0" data-a="pick">${I("Upload")}<p style="margin:6px 0 0"><b>Drop an image, chart or PDF here</b></p><span class="mu">or tap to choose a file · simulated OCR and summary, the file never leaves your browser</span></div><input type="file" id="fi" accept="image/*,application/pdf,.txt,.csv" hidden><div id="azp"></div><div class="o" id="azo" hidden></div></div>
+ <h2 id="t-flow">${I("Share2")} Visual flow builder</h2><div class="card c5"><div class="r">${NT.map((n,i)=>`<button class="btn" data-a="addn" data-id="${i}" style="--c:${n[1]};flex:0 1 auto">${n[0]}</button>`).join("")}</div><p class="mu" style="margin:0 0 6px">Add nodes, tap one node, then another to connect them.</p><div id="fw">${fsvg()}</div><div class="r"><button class="btn pri" data-a="frun">${I("Zap")}Run flow</button><button class="btn" data-a="fclr">Clear</button></div><div class="o" id="fo" hidden></div></div>
+ <h2 id="t-crawl">${I("Globe")} Autonomous research crawler</h2><div class="card c1"><div class="r">${inp("ct","Research topic","text","AI agent pricing trends").replace('class="r"','style="flex:3 1 200px;margin:0"')}<button class="btn pri" data-a="crawl" style="flex:1 1 100px">${I("Globe")}Crawl</button></div><div class="o" id="co" hidden></div><div class="r"><button class="btn" data-a="dlr" id="dlr" hidden>${I("FileText")}Download .md</button></div></div>
+ <h2>${I("Database")} Registry</h2><div class="g">${D.agents.map(a=>`<div class="card c2"><b>${esc(a.name)}</b><p class="mu">${esc(a.task)}</p></div>`).join("")}</div>`,
+saas:()=>`<h2>${I("Share2")} ${t("saas")}</h2><div class="g"><div class="card c2"><div class="r"><input id="qt" placeholder="Title" value="Website design"><input id="qc" placeholder="Client"></div><div class="r"><input id="qi" placeholder="Item" value="Landing page"><input id="qq" type="number" min="1" value="1" aria-label="Quantity"><input id="qp" type="number" min="0" value="250" aria-label="Price in USD"></div>
+ <button class="btn pri" data-a="qm">${I("Share2")}${t("make")}</button><div id="qo"></div></div><div class="card c2"><b>${I("Activity")} Live tracker</b><div class="sc" id="trk">${trk()}</div><p class="mu">Updates live when a recipient opens the link in another tab.</p></div></div>`,
+quote:id=>{const s=D.shares[id];if(!s)return`<div class="card c3" style="max-width:560px;margin:30px auto"><h2>Link not found</h2><p class="mu">Quote links made in this browser can be opened here.</p></div>`;
+ s.views++;save();const tot=s.qty*s.price;return`<div class="card c2" style="max-width:560px;margin:30px auto"><h2 style="margin-top:0">${esc(s.title)}</h2><p class="mu">${s.client?"For "+esc(s.client):""}</p><div class="r" style="justify-content:space-between"><span>${esc(s.item)} × ${s.qty}</span><b>${money(tot)}</b></div><p class="num" style="color:var(--mi)">${money(tot)}</p><button class="btn pri" data-a="join" data-id="${id}">${I("Zap")}Powered by ${BRAND} — make your own in 60 seconds</button></div>`},
+audit:()=>`<h2 id="t-risk">${I("ShieldCheck")} ${t("audit")}</h2><div class="card c3"><div class="r" style="align-items:center"><span class="mu">JSON risk scanner</span><button class="btn ${D.e2ee?"on":""}" data-a="e2" style="--c:var(--cr)">${I("Lock")} E2EE ${D.e2ee?"ON":"OFF"}</button></div><textarea id="au" rows="9" style="font-family:ui-monospace,monospace">${esc(S.au||JSON.stringify([{id:"A1",amount:420,approvedBy:"Rana",date:"2026-11-03"},{id:"A2",amount:380,approvedBy:"Rana",date:"2026-11-04"},{id:"A3",amount:450,approvedBy:"Sumi",date:"2026-11-05"},{id:"A4",amount:12500,approvedBy:"",date:"2026-11-07"},{id:"A2",amount:400,approvedBy:"Rana",date:"2026-11-05"}],null,1))}</textarea>
+ <div class="r"><button class="btn pri" data-a="scan">${I("ShieldCheck")}${t("scan")}</button><button class="btn" data-a="sample">${I("Database")}Load 500 sample records</button></div><div id="ar2"></div></div>`,
+market:()=>{const me=S.u.email,mine=D.orders.filter(o=>o.seller===me),sum=(a,k)=>+a.reduce((s,o)=>s+o[k],0).toFixed(2),own=D.agents.filter(a=>!a.rentUntil);
+ return`<h2>${I("Tag")} ${t("market")} <span class="tg low">${COMM}% platform commission</span></h2>
+ <div class="g"><div class="card c5"><b>${I("Upload")} List a workflow</b><select id="mka" style="margin-top:8px;width:100%">${own.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join("")}</select><div class="r"><input id="mkb" type="number" min="0" step="0.01" placeholder="Buy price (USD)" aria-label="Buy price in USD"><input id="mkr" type="number" min="0" step="0.01" placeholder="Rent / 30 days (USD)" aria-label="Rent price per 30 days in USD"></div><button class="btn pri" data-a="lst">${I("Tag")}List on marketplace</button><p class="mu">Leave a price empty to turn that option off. Each sale pays the seller 85% and the platform keeps ${COMM}%.</p></div>
+ <div class="card c2"><b>${I("Wallet")} Your seller earnings</b><div class="num">${money(sum(mine,"net"))}</div><span class="mu">${mine.length} orders · gross ${money(sum(mine,"gross"))} · commission ${money(sum(mine,"fee"))}</span></div></div>
+ <h2>${I("Layers")} Listings</h2><div class="g">${D.market.map(i=>{const my=i.email===me;return`<div class="card c5"><b>${esc(i.name)}</b><p class="mu" style="margin:4px 0">${esc(i.task)}</p><span class="mu">by ${esc(i.by)} · ${i.sales} sold</span><div class="r">${i.buy>0?`<button class="btn pri" data-a="buy" data-id="${i.id}" data-mode="buy" ${my?"disabled":""}>Buy ${money(i.buy)}</button>`:""}${i.rent>0?`<button class="btn" data-a="buy" data-id="${i.id}" data-mode="rent" ${my?"disabled":""}>Rent ${money(i.rent)} / 30 days</button>`:""}</div>${my?`<span class="tg low">Your listing</span>`:""}</div>`}).join("")||`<p class="mu">No listings yet.</p>`}</div>
+ <p class="mu">Demo checkout: purchases are recorded in the ledger and copy the workflow into your workspace. No money moves until you connect a payout provider.</p>
+ <h2>${I("FileText")} Order ledger</h2><div class="card c2 sc"><table><tr><th>Order</th><th>Item</th><th>Mode</th><th>Gross</th><th>Fee ${COMM}%</th><th>Seller net</th></tr>${D.orders.slice(0,30).map(o=>`<tr><td>${esc(o.id)}</td><td>${esc(o.item)}</td><td>${o.mode}</td><td>${money(o.gross)}</td><td>${money(o.fee)}</td><td>${money(o.net)}</td></tr>`).join("")||`<tr><td colspan="6" class="mu">No orders yet.</td></tr>`}</table></div>`},
+pay:()=>{const c=P1(),cy=c.cy,ci=S.cycle==="y"?1:0,sk=S.sel+(ci?"_y":""),btc=c.tot.toFixed(8);
+ return`<h2>${I("Wallet")} ${t("pay")} <span class="tg low">USD · BTC · BDT</span></h2>
+ <div class="r" style="justify-content:center"><div class="tab" style="flex:0 1 380px;margin:0"><button class="btn ${ci?"":"on"}" data-a="cyc" data-id="m">Monthly</button><button class="btn ${ci?"on":""}" data-a="cyc" data-id="y">Yearly (Save up to ${Math.max(...PLANS.map(x=>savePct(x[0],"usd")))}%)</button></div></div>
+ <div class="g" style="margin-top:12px">${PLANS.map(x=>{const id=x[0],on=S.sel===id;return`<button class="card c4" data-a="plan" data-id="${id}" style="text-align:start;cursor:pointer;position:relative;${on?"border-color:var(--bt)":""}">${id==="growth"?`<span class="tg medium" style="position:absolute;top:12px;inset-inline-end:12px">Most popular</span>`:""}<b>${x[2]}</b><span class="num" style="display:block">${fmtC(cy,PR[id][cy][ci])}<span class="mu" style="font-size:14px">/${ci?"yr":"mo"}</span></span>${ci?`<span class="tg low">Save ${savePct(id,cy)}% vs monthly</span>`:""}${FEAT[id].map(f=>`<span class="mu" style="display:block;margin-top:4px">✓ ${f}</span>`).join("")}</button>`}).join("")}</div>
+ <p class="mu" style="text-align:center;margin-top:14px">Tap a plan to pay by card, Bitcoin or bKash / Nagad / Rocket.</p>
+ <h2>${I("FileText")} Invoices</h2><div class="card c4 sc"><table><tr><th>No.</th><th>Plan</th><th>Total</th><th>Via</th><th></th></tr>${D.paid.map(v=>`<tr><td>${v.id}</td><td>${v.plan}${v.cyc==="y"?" (yearly)":""}</td><td>${fmtC(v.cur||"usd",v.tot)}</td><td>${esc(v.m)}</td><td><button class="btn" data-a="inv" data-id="${v.id}">${I("FileText")}PDF</button></td></tr>`).join("")||`<tr><td colspan="5" class="mu">No invoices yet.</td></tr>`}</table></div><p class="mu">Current plan: <b>${D.plan}</b> · Accepted: USD, Bitcoin and BDT.</p>`},
+stats:()=>`<h2>${I("Activity")} ${t("stats")} <span class="tg low" id="bk" style="font-size:12px">backend: checking…</span></h2><div class="g"><div class="card c5" style="grid-column:1/-1"><b>${I("Users")} User growth</b><svg id="ch" viewBox="0 0 400 120" style="width:100%;height:150px"></svg></div>${[["API latency","ms","lt"],["Agent success","%","su"],["Uptime","%","up"]].map(m=>`<div class="card c1"><div class="mu">${m[0]}</div><div class="num" id="${m[2]}">–</div><span class="mu">${m[1]}</span></div>`).join("")}</div>
+ <h2>${I("Code")} Developer console</h2><div class="g"><div class="card c1"><b>${I("Key")} API keys</b><div class="r"><button class="btn pri" data-a="gk">Generate key</button></div>${D.keys.map(k=>`<p class="mu" style="margin:6px 0"><code>${k.k}</code> <button class="btn" data-a="rk" data-id="${k.id}">Revoke</button></p>`).join("")||`<p class="mu">No keys yet.</p>`}</div>
+ <div class="card c2"><b>${I("Share2")} Webhook endpoint</b>${inp("wh","https://example.com/hooks/qvmpxt","url",D.hooks[0]||"")}<div class="r"><button class="btn" data-a="wa">Save endpoint</button><button class="btn" data-a="wt">Send test event</button></div></div>
+ <div class="card c3" style="grid-column:1/-1"><b>${I("Terminal")} Activity tester and logger</b><div class="r"><select id="ep" style="flex:3 1 200px"><option>GET /v1/agents</option><option>POST /v1/agents/run</option><option>POST /v1/audit</option></select><button class="btn pri" data-a="ts">${I("Zap")}Send request</button></div><div class="o" id="lgr" style="max-height:220px;overflow:auto">${esc(D.logs.join("\n"))||"No events yet."}</div></div>
+ <div class="card c2" style="grid-column:1/-1"><b>${I("Globe")} Sitemap.xml generator</b><div class="r">${inp("sb","Site URL","url",/^https?:$/.test(location.protocol)?location.origin:"https://your-domain.com").replace('class="r"','style="flex:2 1 220px;margin:0"')}${inp("sx","Extra paths, comma separated","text","").replace('class="r"','style="flex:2 1 200px;margin:0"')}</div><div class="r"><button class="btn pri" data-a="smg">${I("Globe")}Generate</button><button class="btn" data-a="smf">${I("Database")}Fetch from backend</button><button class="btn" data-a="smd" id="smd" hidden>${I("Download")}Download</button></div><div class="o" id="smo" hidden></div><p class="mu">Schema.org JSON-LD is embedded in this page's head. The worker serves a live /sitemap.xml and /robots.txt. Search rankings cannot be guaranteed.</p></div></div>`,
+set:()=>`<h2>${I("Settings")} ${t("set")}</h2><div class="g"><div class="card c5"><b>Profile</b>${inp("pn","Name","text",S.u.name)}${inp("pp","Phone","tel",S.u.phone||"")}<div class="r"><select id="pc2"><option value="USD" ${S.u.cur==="USD"?"selected":""}>USD ($)</option><option value="BTC" ${S.u.cur==="BTC"?"selected":""}>Bitcoin (₿)</option><option value="BDT" ${S.u.cur==="BDT"?"selected":""}>BDT (৳)</option></select><button class="btn pri" data-a="prof">Save</button></div></div>
+ <div class="card c1"><b>${I("Globe")} ${t("lang")}</b><div class="r"><select id="lgs" data-c="lang" style="width:100%">${LG.map((c,i)=>`<option value="${c}" ${S.lang===c?"selected":""}>${esc(langName(c))} · ${c}${hasLang(c)?" ✓":""}</option>`).join("")}</select></div><p class="mu">${LG.length} languages. Direction (RTL/LTR) switches automatically. ✓ = interface translated; others fall back to English until you import a pack.</p><div class="r"><button class="btn" data-a="pexp">${I("FileText")}Export English pack</button><button class="btn" data-a="pimp">${I("Upload")}Import pack</button></div><input type="file" id="pf" accept="application/json,.json" hidden></div>
+ <div class="card c2"><b>${I("Lock")} Zero-knowledge privacy</b><p class="mu">With E2EE on, audit files are encrypted in your browser with AES-256-GCM before scanning. The key never leaves memory.</p><button class="btn ${D.e2ee?"on":""}" data-a="e2">E2EE ${D.e2ee?"ON":"OFF"}</button></div>
+ <div class="card c3"><b>${I("Key")} MFA and passkey</b>${S.u.mfa?`<p class="mu">Authenticator simulator (rotates every 30 s)</p><div class="o" id="tc">…</div>${inp("mv","6-digit code")}<div class="r"><button class="btn" data-a="mvf">Verify code</button><button class="btn" data-a="mfx">Disable MFA</button></div>`:`<p class="mu">Add a time-based one-time code to every sign-in.</p><button class="btn" data-a="mfa">${I("ShieldCheck")}Enable MFA</button>`}
+ <div class="r"><button class="btn ${S.u.pk?"on":""}" data-a="pk">${I("Shield")}${S.u.pk?"Passkey enrolled":"Enroll passkey (biometric)"}</button></div></div>
+ <div class="card c4" style="grid-column:1/-1"><b>${I("Users")} Team workspace (RBAC)</b><div class="sc"><table><tr><th>Member</th><th>Role</th></tr>${D.team.map((m,i)=>`<tr><td>${esc(m.n)}<br><span class="mu">${esc(m.e)}</span></td><td><select data-c="role" data-i="${i}">${["Admin","Editor","Viewer"].map(r=>`<option ${m.r===r?"selected":""}>${r}</option>`).join("")}</select></td></tr>`).join("")}</table></div>
+ <div class="r">${inp("ie","Invite by email","email").replace('class="r"','style="flex:2 1 180px;margin:0"')}<select id="ir" style="flex:1 1 100px"><option>Editor</option><option>Viewer</option><option>Admin</option></select><button class="btn" data-a="inv2">Invite</button></div>
+ <div class="r" style="align-items:center"><span class="mu" style="flex:0 1 auto">Preview as role:</span><select data-c="pv" style="flex:0 1 auto">${["Admin","Editor","Viewer"].map(r=>`<option ${S.role===r?"selected":""}>${r}</option>`).join("")}</select></div><p class="mu">Admin: everything. Editor: create, publish, fork. Viewer: read, like, comment.</p></div></div>
+ <div class="r" style="margin-top:14px"><button class="btn c6" data-a="out">${I("Lock")}${t("logout")}</button></div>`,
+terms:()=>`<h2>${I("Award")} ${t("terms")}</h2><div class="g">${[["Terms of service","Use the platform lawfully. You own your data and content. Paid plans renew monthly until cancelled."],["Data privacy","We keep only the data needed to run your account. Demo data stays in your browser. We never sell personal data."],["Enterprise security standards","AES-256-GCM encryption, zero-knowledge local encryption, MFA and passkeys, least-privilege role-based access, and controls designed against the SOC 2 and ISO 27001 families. No certification is claimed unless stated."],["Architecture standards","Open formats, exportable data, versioned APIs, rotating keys, independent backups, backward-compatible upgrades and regular security reviews."],["Payments","Subscriptions are billed monthly or yearly in US dollars by card (Stripe), in Bitcoin, or in Bangladeshi taka through bKash, Nagad or Rocket. Marketplace sales carry a 15% platform commission. No other currency is accepted."]].map(x=>`<div class="card c5"><b>${x[0]}</b><p class="mu">${x[1]}</p></div>`).join("")}</div>`};
+const footer=()=>`<footer><div class="w"><div class="fg"><div><div class="lgo" style="display:flex;align-items:center">${LOGO(34,"lf")}<b>${BRAND.toUpperCase()}</b></div><p class="mu">${t("sub")}</p><span class="bd">${I("Lock")} AES-256</span><span class="bd">${I("ShieldCheck")} Role-based access</span><span class="bd">${I("Key")} MFA ready</span><span class="bd">${I("Database")} Export anytime</span></div>
+ <div><b>Company</b>${NAV.map(n=>`<a data-go="${n[0]}">${t(n[0])}</a>`).join("")}</div><div><b>Developers</b><a data-go="stats">API console</a><a data-go="stats">System status</a><a data-go="terms">Security</a></div><div><b>We accept</b><span class="bd">$ USD</span><span class="bd" style="color:var(--bt)">₿ BTC</span><span class="bd" style="color:var(--em)">৳ BDT</span></div></div>
+ <div class="lg0"><b>Founder &amp; Chief Architect: ${FOUNDER}</b>© 2026 ${BRAND} Holding. All rights reserved.</div></div></footer>`;
+const pwf=(id,label,ac)=>`<div class="fl pw" data-v="${id}"><input id="${id}" type="password" placeholder=" " autocomplete="${ac}" spellcheck="false" autocapitalize="off"><label for="${id}">${label}</label><span class="vi y">${I("CheckCircle")}</span><span class="vi n">${I("XCircle")}</span><button type="button" class="eye" data-a="eye" aria-label="Show password" aria-pressed="false">${I("Eye")}</button></div>`;
+const pwStrength=p=>{if(!p)return{n:0,l:"",c:""};let s=0;if(p.length>=6)s++;if(p.length>=10)s++;if(p.length>=14)s++;if(/[a-z]/.test(p)&&/[A-Z]/.test(p))s++;if(/\d/.test(p))s++;if(/[^A-Za-z0-9]/.test(p))s++;
+ if(/^(.)\1*$/.test(p)||/^(password|123456|12345678|qwerty|letmein|admin)/i.test(p))s=Math.min(s,1);
+ return s<=1?{n:25,l:"Weak",c:"#ff3366"}:s<=3?{n:50,l:"Medium",c:"#f59e0b"}:s===4?{n:75,l:"Strong",c:"#10b981"}:{n:100,l:"Secure",c:"#00f0ff"}};
+const SOC=[["google","Google","Google"],["github","GitHub","Github"],["pkl","Passkey","Fingerprint"]];
+const authUI=m=>`<div class="au"><div class="gl pg"><div class="hd">${LOGO(64,"la")}<b>${BRAND.toUpperCase()}</b><p class="pwr">Powered by <em>${BRAND} Enterprise Engine</em> · Sovereign AI &amp; Financial Ecosystem</p></div>
+ <div class="tab" role="tablist"><button class="btn ${m==="up"?"on":""}" role="tab" aria-selected="${m==="up"}" data-a="am" data-id="up">${t("signup")}</button><button class="btn ${m==="in"?"on":""}" role="tab" aria-selected="${m==="in"}" data-a="am" data-id="in">${t("login")}</button></div>
+ <div class="ocl">One-Click Authentication</div>
+ <div class="soc">${SOC.map(s=>{const pk=s[0]==="pkl",lb=pk?"Sign in with Passkey / Biometric":"Continue with "+s[1];return`<button type="button" class="btn ${pk?"neon":""}" data-a="${pk?"pkl":"social"}" data-id="${s[0]}" aria-label="${lb}" title="${lb}">${I(s[2])}<span>${s[1]}</span></button>`}).join("")}</div>
+ <div class="dv">or use your details</div>
+ ${m==="up"?fld("an","Full name","text","","name"):""}${fld("ae","Email","email",S.pre||"","email")}${m==="up"?fld("ph","Phone number","tel","","tel"):""}${pwf("ap","Password",m==="up"?"new-password":"current-password")}
+ ${m==="up"?`<div class="pwm" aria-live="polite"><div class="pwt"><i id="pwb"></i></div><span id="pwl">Any password works</span></div>`:`<div id="mcw" hidden>${fld("mc","6-digit MFA code","text")}<p class="mu" id="mh"></p></div>`}
+ <button class="cta" data-a="sub" data-id="${m}">${I("Lock")}${m==="up"?"Create account":"Log in"}</button>
+ <div class="trust-badges"><span>🔒 256-Bit Military Grade Encryption</span><span>🛡️ Zero-Knowledge Architecture</span><span>⚡ Instant Session Isolation</span></div></div></div>`;
+
+// ---------- overlays: menu drawer, free-plan dashboard, welcome, account chooser, checkout ----------
+const MD=$("#mdl");
+const openM=(h,c="")=>{MD.innerHTML=`<div class="ov" data-a="shut"></div><div class="sh ${c}" role="dialog" aria-modal="true">${h}</div>`;MD.hidden=false;document.body.style.overflow="hidden";const x=$(".x",MD);if(x)x.focus({preventScroll:true})};
+const closeM=()=>{if(MD.hidden)return;MD.hidden=true;MD.innerHTML="";document.body.style.overflow=""};
+const go=(p,sc)=>{S.sc=sc||"";if((location.hash.slice(2)||"home")===p)route();else location.hash="#/"+p;scrollTo(0,0)};
+const xb=l=>`<button class="x" data-a="shut" aria-label="${l||"Close"}">${I("Close")}</button>`;
+const planName=()=>D.plan==="free"?"Free":D.plan[0].toUpperCase()+D.plan.slice(1);
+const ACC={google:[["Alex Morgan","alex.morgan@gmail.com"],["Sam Rivera","sam.rivera@gmail.com"]],github:[["alexmorgan","alex.morgan@users.noreply.github.com"],["samrivera","sam.rivera@users.noreply.github.com"]]};
+const FT=[["Mic","Voice Agent","Speak a command and an agent runs it","agents","t-voice"],["Upload","Document OCR","Read images, charts and PDFs","agents","t-ocr"],["Share2","Visual Flow Builder","Connect nodes and run a workflow","agents","t-flow"],["ShieldCheck","Risk Scanner","Flag duplicates, missing approvals and anomalies","audit","t-risk"],["Globe","Research Crawler","Turn a topic into a report","agents","t-crawl"]];
+const chooser=p=>{const g=p==="google",nm=g?"Google":"GitHub";openM(`<div class="dh"><b>${I(g?"Google":"Github")} Continue with ${nm}</b>${xb()}</div><p class="mu" style="margin-top:0">Choose an account to continue to ${BRAND}.</p><div class="acs">${ACC[p].map((a,i)=>`<button class="ac" data-a="acct" data-p="${p}" data-i="${i}"><span class="av">${esc(a[0][0].toUpperCase())}</span><span><b>${esc(a[0])}</b><small>${esc(a[1])}</small></span></button>`).join("")}</div><div class="r" style="margin-top:10px"><input id="ox" type="email" placeholder="Use another email" autocomplete="email" style="flex:2 1 160px"><button class="btn" data-a="acct" data-p="${p}" data-i="x">Continue</button></div><p class="mu" style="font-size:12px;margin-bottom:0">Account chooser preview. Connect an OAuth provider to sign in with real ${nm} accounts.</p>`)};
+const menuUI=()=>openM(`<div class="dh"><div class="bn" style="cursor:default">${LOGO(30,"lm")}<b translate="no" class="notranslate">QVMPXT</b></div>${xb("Close menu")}</div><div class="dl">${NAV.map(n=>`<button class="dli ${cur()===n[0]?"on":""}" style="--c:${n[2]}" data-go="${n[0]}"><span class="ic2">${I(n[1])}</span>${t(n[0])}</button>`).join("")}</div><button class="btn c6 dlo" data-a="out">${I("Lock")}${t("logout")}</button>`,"dr");
+const freeUI=()=>{const L=lim(),p=Math.min(100,Math.round(D.used/L*100)),fr=D.plan==="free";
+ openM(`<div class="dh"><div><b style="font-size:18px">${planName()} Plan</b><div class="mu">${fr?"Everything below is active on your account":"Your active plan and tools"}</div></div>${xb()}</div>
+ <div class="u3"><div><span class="mu">Runs used</span><div class="num">${D.used}</div></div><div><span class="mu">Run limit</span><div class="num">${L.toLocaleString()}</div></div><div><span class="mu">Tokens</span><div class="num">${D.tokens.toLocaleString()}</div></div></div>
+ <div class="pwt" role="progressbar" aria-valuenow="${p}" aria-valuemin="0" aria-valuemax="100" aria-label="Run usage"><i style="width:${p}%;background:linear-gradient(90deg,var(--in),var(--cy));color:var(--cy)"></i></div><p class="mu" style="margin:6px 0 14px">${p}% used. ${Math.max(0,L-D.used).toLocaleString()} runs remaining.</p>
+ <b>Active tools</b><div class="acs" style="margin-top:8px">${FT.map(f=>`<button class="ft" data-go="${f[3]}" data-sc="${f[4]}">${I(f[0])}<span><b>${f[1]}</b><small>${f[2]}</small></span><em>Open</em></button>`).join("")}</div>
+ ${fr?`<button class="cta" data-go="pay">${I("Zap")}Upgrade plan</button>`:""}`)};
+const welcome=()=>{const n=esc((S.u.name||"there").split(" ")[0]);
+ openM(`<div style="text-align:center">${LOGO(52,"lw")}<h2 style="margin:10px 0 4px;display:block">Welcome to QVMPXT, ${n}</h2><p class="mu" style="margin:0">Your workspace is ready. The Free Plan is active and needs no card.</p></div>
+ <div class="u3"><div><div class="num">${lim()}</div><span class="mu">Engine runs</span></div><div><div class="num">${FT.length}</div><span class="mu">Core tools</span></div><div><div class="num">$0</div><span class="mu">To start</span></div></div>
+ <ul class="wl">${[...FT.slice(0,4).map(f=>[f[0],f[1],f[2]+"."]),["Tag","Marketplace","List, rent or buy AI workflows."]].map(f=>`<li>${I(f[0])}<span><b>${f[1]}</b><br><span class="mu">${f[2]}</span></span></li>`).join("")}</ul>
+ <button class="cta" data-a="shut">Start exploring</button><button class="btn" data-a="free" style="width:100%;margin-top:8px">View Free Plan usage</button>`)};
+const payUI=()=>{const c=P1(),ci=S.cycle==="y";
+ openM(`<div class="dh"><div><b style="font-size:18px">${c.p[2]} plan</b><div class="mu">${fmtC("usd",PR[c.p[0]].usd[ci?1:0])} per ${ci?"year":"month"} · ${FEAT[c.p[0]][0]}</div></div>${xb()}</div>
+ <div class="tab" style="margin:0"><button class="btn ${ci?"":"on"}" data-a="cyc2" data-id="m">Monthly</button><button class="btn ${ci?"on":""}" data-a="cyc2" data-id="y">Yearly</button></div>${payBody()}`,"pm");
+ if(S.method==="btc")qr()};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeM()});addEventListener("hashchange",closeM);
+
+// ---------- router ----------
+const cur=()=>(location.hash.slice(2)||"home").split("/")[0];
+function stopVoice(){clearInterval(S.vi);clearInterval(S.vw);S.vi=S.vw=0}
+function shell(inner){$("#app").innerHTML=`<nav><div class="w nb"><button class="bn" data-go="home" aria-label="QVMPXT home">${LOGO(34,"ln")}<b translate="no" class="notranslate">QVMPXT</b></button><div class="nbr"><button class="fp" data-a="free" aria-label="Open plan dashboard">${I("Zap")}<span>${planName()} Plan</span></button><button class="dots" data-a="menu" aria-label="Open menu" aria-haspopup="dialog">${I("More")}</button></div></div></nav><main class="w pg">${inner}</main>${footer()}`}
+function route(){S.timers.forEach(clearInterval);S.timers=[];stopVoice();const h=location.hash.slice(2)||"home";document.documentElement.lang=S.lang;document.documentElement.dir=isRtl(S.lang)?"rtl":"ltr";
+ if(h.startsWith("q/")){$("#app").innerHTML=`<main class="w pg">${pg.quote(h.slice(2))}</main>`+footer();return}
+ if(!S.u){$("#app").innerHTML=authUI(S.am);return}
+ const k=NAV.some(n=>n[0]===h)?h:"home";shell(pg[k]());if(B[k])B[k]();if(S.sc){const e=document.getElementById(S.sc);S.sc="";if(e)requestAnimationFrame(()=>e.scrollIntoView())}}
+const login=e=>{S.u=U[e];S.role="Admin";S.pre="";S.method=({USD:"card",BTC:"btc",BDT:"mob"})[S.u.cur]||"card";sv("qv_s",{e,tok:btoa(JSON.stringify({e,x:Date.now()+864e5}))+"."+uid()});if(!D.team.length)D.team.push({n:S.u.name,e,r:"Admin"});save();if(location.hash==="#/home"||!location.hash)route();else location.hash="#/home";if(!S.u.wd){S.u.wd=1;sv("qv_u",U);setTimeout(welcome,350)}};
+const qr=()=>{const a=$("#bw").value.trim(),c=P1(),btc=c.tot.toFixed(8),ok=/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,62}$/.test(a),ln=/^lnbc[0-9a-z]+$/i.test(a),q=$("#bq");$("#bx").textContent=`${btc} BTC (listed price, about ${money(c.usd)})`;q.hidden=!(ok||ln);q.textContent="";S.qrok=ok||ln;if(!S.qrok)return;
+ const u=ln?"lightning:"+a:`bitcoin:${a}?amount=${btc}`;q.dataset.uri=u;try{q.innerHTML=qrSvg(u,180)}catch{q.textContent=u}};
+const fin=(m,tx)=>{const c=P1();D.plan=S.sel;D.cycle=S.cycle;D.paid.unshift({id:"INV-"+Date.now().toString(36).toUpperCase(),plan:c.p[2],sub:c.sub,tax:c.tax,tx:c.tx,tot:c.tot,cur:c.cy,cyc:S.cycle,m,txid:tx||"",at:Date.now()});save();toast("Plan activated (sandbox checkout): "+c.p[2]);closeM();route()};
+const luhn=s=>{let n=0,d=0;for(let i=s.length-1;i>=0;i--){let c=+s[i];if(d++%2){c*=2;if(c>9)c-=9}n+=c}return s.length>=13&&n%10===0};
+const B={
+ home(){$$("[data-n]").forEach(e=>{const n=+e.dataset.n,t0=performance.now(),f=now=>{const p=Math.min(1,(now-t0)/1200);e.textContent=Math.round(n*p).toLocaleString();if(p<1)requestAnimationFrame(f)};requestAnimationFrame(f)})},
+ pay(){if(S.method==="btc")qr()},
+ set(){if(S.u.mfa){const u=async()=>{const e=$("#tc");if(e)e.textContent=`Secret: ${S.u.mfa}\nCode: ${await totp(S.u.mfa)}`};u();S.timers.push(setInterval(u,1000))}},
+ stats(){(/^https?:$/.test(location.protocol)?fetch("/api/health"):Promise.reject()).then(r=>r.json()).then(j=>{const e=$("#bk");if(e)e.textContent=`backend: ${j.brand} · ${j.storage} storage · model ${j.model} · offline cache ${navigator.serviceWorker&&navigator.serviceWorker.controller?"active":"inactive"}`}).catch(()=>{const e=$("#bk");if(e)e.textContent="backend: not connected (local mode)"});let d=Array.from({length:30},(_,i)=>40+i*1.4+Math.random()*6);const dr=()=>{const mx=Math.max(...d),mn=Math.min(...d);$("#ch").innerHTML=`<polyline fill="none" stroke="#00f0ff" stroke-width="2.5" points="${d.map((v,i)=>`${i*400/29},${115-(v-mn)/(mx-mn||1)*105}`).join(" ")}"/>`;$("#lt").textContent=Math.round(60+Math.random()*40);$("#su").textContent=(98.5+Math.random()*1.4).toFixed(1);$("#up").textContent="99.99"};dr();S.timers.push(setInterval(()=>{d.shift();d.push(d[d.length-1]+Math.random()*3);dr()},1800))}};
+
+// ---------- analyzer ----------
+const hsh=s=>{let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0};
+async function analyze(f){
+ if(!f)return;const p=$("#azp"),o=$("#azo");if(S.az){URL.revokeObjectURL(S.az);S.az=null}
+ const kb=(f.size/1024).toFixed(1),isI=f.type.startsWith("image/"),isP=f.type==="application/pdf"||/\.pdf$/i.test(f.name);
+ if(f.size>25*1024*1024)throw Error("File is larger than 25 MB");
+ if(isI||isP){S.az=URL.createObjectURL(f);p.innerHTML=isI?`<img id="pvw" alt="Preview of ${esc(f.name)}" src="${S.az}">`:`<iframe class="pdfp" title="PDF preview" src="${S.az}"></iframe>`}
+ else p.innerHTML="";
+ o.hidden=false;o.textContent="";const h=hsh(f.name+f.size),w=180+h%900,pages=isP?1+h%12:1,conf=(91+h%8)+"."+(h%10);
+ let txt="";if(/\.(txt|csv)$/i.test(f.name)||f.type.startsWith("text/")){try{txt=(await f.text()).slice(0,400)}catch{}}
+ const L2=[`File: ${f.name}`,`Type: ${f.type||"unknown"} · ${kb} KB`,"","[1/3] Reading file…","[2/3] Simulated OCR: "+w+" words detected, confidence "+conf+"%",txt?"Text sample: "+txt.replace(/\s+/g," ").slice(0,200):"[3/3] Extracting key figures and structure…","",
+  "Executive summary (simulated)",`- ${isI?"Image or chart":isP?pages+"-page PDF document":"Text document"} with ${2+h%5} main sections.`,`- ${3+h%4} key figures flagged for review.`,`- Suggested next step: send to the Compliance scanner or attach to a quote link.`,"","Note: this is a local simulation. Connect a vision-capable model on a server for real OCR."];
+ for(const l of L2){await sleep(260);o.textContent+=l+"\n"}log("analyzer "+f.name.slice(0,30))}
+
+// ---------- actions (click) and changes ----------
+const A={
+ am(b){const em=$("#ae");S.pre=em?em.value:"";S.am=b.dataset.id;route()},
+ cyc(b){S.cycle=b.dataset.id;route()},
+ mobp(b){S.mob=b.dataset.id;payUI()},
+ mobpay(){const tx=$("#tx").value.trim().toUpperCase();if(!txOk(tx))throw Error("TxID must be 8-12 letters or digits");if(D.txids.includes(tx))throw Error("This TxID was already used");D.txids.unshift(tx);fin(MOB[S.mob][0]+" (mobile banking)",tx)},
+ lst(){need("publish");const a=D.agents.find(x=>x.id===$("#mka").value),buy=+$("#mkb").value||0,rent=+$("#mkr").value||0;if(!a)throw Error("Create an agent first");if(buy<=0&&rent<=0)throw Error("Set a buy or rent price");if(buy<0||rent<0||buy>10000||rent>10000)throw Error("Prices must be between 0 and 10,000");D.market.unshift({id:uid(),by:S.u.name,email:S.u.email,name:a.name,task:a.task,buy:+buy.toFixed(2),rent:+rent.toFixed(2),sales:0});save();route();toast("Listed on the marketplace")},
+ buy(b){need("fork");const i=D.market.find(x=>x.id===b.dataset.id),mode=b.dataset.mode;if(!i)throw Error("Listing not found");if(!(i[mode]>0))throw Error("That option is not available");if(i.email===S.u.email)throw Error("You cannot purchase your own listing");
+  const sp=split(i[mode]);D.orders.unshift({id:"ORD-"+uid().toUpperCase(),item:i.name,mode,buyer:S.u.email,seller:i.email,...sp,at:Date.now()});i.sales++;
+  D.agents.unshift({id:uid(),name:i.name+(mode==="rent"?" (rented 30d)":""),task:i.task,rentUntil:mode==="rent"?Date.now()+30*864e5:0});save();route();toast(`${mode==="rent"?"Rented":"Bought"}: seller gets ${money(sp.net)}, platform ${money(sp.fee)}`)},
+ smg(){const b=$("#sb").value.trim();if(!/^https?:\/\/[^\s/]+/.test(b))throw Error("Enter a site URL starting with http:// or https://");const ex=$("#sx").value.split(",").map(s=>s.trim()).filter(s=>/^\/[\w\-./]*$/.test(s));S.sm=sitemapXml(b,ex);const o=$("#smo");o.hidden=false;o.textContent=S.sm;$("#smd").hidden=false;log("sitemap "+(ex.length+1)+" urls")},
+ async smf(){if(!/^https?:$/.test(location.protocol))throw Error("Backend not connected (open the app through the worker)");const r=await fetch("/sitemap.xml");if(!r.ok)throw Error("Backend returned "+r.status);S.sm=await r.text();const o=$("#smo");o.hidden=false;o.textContent=S.sm;$("#smd").hidden=false},
+ smd(){if(!S.sm)throw Error("Generate a sitemap first");dl("sitemap.xml",S.sm,"application/xml")},
+ eye(b){const i=$("#ap"),show=i.type==="password";i.type=show?"text":"password";b.innerHTML=I(show?"EyeOff":"Eye");b.setAttribute("aria-pressed",String(show));b.setAttribute("aria-label",show?"Hide password":"Show password");i.focus()},
+ social(b){chooser(b.dataset.id)},
+ acct(b){const p=b.dataset.p,i=b.dataset.i;let n,e;if(i==="x"){e=$("#ox").value.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(e))throw Error("Enter a valid email address");n=e.split("@")[0]}else{[n,e]=ACC[p][+i]}
+  if(!U[e]){U[e]={name:n,email:e,phone:"",cur:"USD",salt:"",h:"",mfa:"",pk:false,social:p};sv("qv_u",U)}closeM();login(e)},
+ shut(){closeM()},free(){freeUI()},menu(){menuUI()},cyc2(b){S.cycle=b.dataset.id;payUI()},
+ pexp(){dl("qvmpxt-i18n-en.json",JSON.stringify({lang:"xx",strings:Object.fromEntries(Object.keys(L).map(k=>[k,L[k][0]]))},null,1),"application/json")},
+ pimp(){$("#pf").click()},
+ sample(){const r=[];let sd=7;const rnd=()=>(sd=(sd*1103515245+12345)&0x7fffffff)/0x7fffffff;for(let i=0;i<500;i++){const a=Math.round(80+rnd()*900+(rnd()<.02?9000+rnd()*9000:0)),d=new Date(Date.UTC(2026,0,1+(rnd()*300|0)));r.push({id:"R"+(1000+(rnd()<.01?(rnd()*i|0):i)),amount:a,approvedBy:rnd()<.04?"":["Rana","Sumi","Ali","Nora"][rnd()*4|0],date:d.toISOString().slice(0,10)})}$("#au").value=JSON.stringify(r);S.au=$("#au").value;toast("500 sample records loaded")},
+ async sub(b){const m=b.dataset.id,e=$("#ae").value.trim().toLowerCase(),p=$("#ap").value;
+  if(!/^\S+@\S+\.\S+$/.test(e)||!p)throw Error("A valid email and a password are required");
+  if(m==="up"){const n=$("#an").value.trim();if(!n)throw Error("Name is required");const phn=$("#ph").value.trim();if(!/^[+\d][\d\s()-]{6,}$/.test(phn))throw Error("A valid phone number is required");if(U[e])throw Error("Account already exists");const salt=uid();U[e]={name:n,email:e,phone:phn,cur:"USD",salt,h:await H(salt+p),mfa:"",pk:false};sv("qv_u",U);return login(e)}
+  const u=U[e];if(!u||await H(u.salt+p)!==u.h)throw Error("Wrong email or password");
+  if(u.mfa){const c=$("#mc");if(!c.value){$("#mcw").hidden=false;$("#mh").textContent="Authenticator simulator code: "+await totp(u.mfa);throw Error("Enter your 6-digit MFA code")}if(c.value.trim()!==await totp(u.mfa))throw Error("Wrong MFA code")}login(e)},
+ async pkl(){const em=$("#ae").value.trim().toLowerCase()||(Object.values(U).find(x=>x.pk)||{}).email||"";if(!em)throw Error("Enter your email, or enroll a passkey in Settings first");const u=U[em];if(!u||!u.pk)throw Error("No passkey for this email. Enroll one in Settings first.");toast("Verifying biometric…");await sleep(900);login(u.email)},
+ out(){closeM();S.u=null;sv("qv_s",null);route()},
+ inst(){S.evt.prompt();S.evt=null},fly(b){$("#flyd").textContent=FLY[b.dataset.id][2]},
+ like(b){const p=D.feed.find(x=>x.id===b.dataset.id),e=S.u.email;p.likes=p.likes.includes(e)?p.likes.filter(x=>x!==e):[...p.likes,e];save();$("#feed").innerHTML=feed()},
+ cm(b){const e=$("#ci"+b.dataset.id);e.hidden=!e.hidden;if(!e.hidden)$("input",e).focus()},
+ send(b){const p=D.feed.find(x=>x.id===b.dataset.id),v=$("input",b.parentNode).value.trim();if(!v)throw Error("Write a comment first");p.cm.push({by:S.u.name,x:v.slice(0,300)});save();$("#feed").innerHTML=feed()},
+ fork(b){need("fork");const p=D.feed.find(x=>x.id===b.dataset.id);if(p.type==="agent")D.agents.unshift({id:uid(),name:p.data.name+" (fork)",task:p.data.task});else{const id=uid();D.shares[id]={...p.data,id,title:p.data.title+" (fork)",views:0,signups:0}}p.forks++;save();$("#feed").innerHTML=feed();toast("Forked into your workspace")},
+ pub(){need("publish");const v=$("#pk").value.split(":");if(!v[1])throw Error("Create an agent or quote first");let o;
+  if(v[0]==="agent"){const a=D.agents.find(x=>x.id===v[1]);o={type:"agent",t:a.name,x:a.task,data:{name:a.name,task:a.task}}}else{const s=D.shares[v[1]];o={type:"quote",t:s.title,x:`${s.item} × ${s.qty} · ${money(s.qty*s.price)}`,data:{title:s.title,client:s.client,item:s.item,qty:s.qty,price:s.price}}}
+  D.feed.unshift({id:uid(),by:S.u.name,likes:[],cm:[],forks:0,...o});save();$("#feed").innerHTML=feed();toast("Published")},
+ ks(){const k=$("#kv").value.trim();if(!k)throw Error("Paste an API key first");S.keys[S.prov]=k;$("#kv").value="";$("#kst").innerHTML=["OpenAI","Claude","DeepSeek"].map(p=>`<span class="bd">${S.keys[p]?"●":"○"} ${p}</span>`).join("");toast(S.prov+" connected (memory only)")},
+ async run(){const o=$("#ao"),t0=performance.now();o.hidden=false;o.textContent="Running…";const r=await API.run($("#ag").value,$("#ai").value).catch(e=>{o.hidden=true;throw e});o.textContent=`${Math.round(performance.now()-t0)} ms · ${r.tokens} tokens\n\n${r.out}`;log(`agent.run ${S.keys[S.prov]?S.prov:"sim"} ${r.tokens}tok`)},
+ mk(){need("create");const n=$("#an2").value.trim(),k=$("#at").value.trim();if(!n||!k)throw Error("Name and task are required");D.agents.unshift({id:uid(),name:n.slice(0,60),task:k.slice(0,500)});save();route();toast("Agent created")},
+ // voice
+ mic(){const b=$("#micb"),bars=$$("#wf i");
+  if(S.vi){stopVoice();b.classList.remove("rec");$("#vst").textContent="Tap to speak";bars.forEach(x=>x.style.height="6px");return}
+  const cmd=VCMD[Math.random()*VCMD.length|0],words=cmd.split(" ");let n=0,out="";b.classList.add("rec");$("#vst").textContent="Listening…";
+  S.vi=setInterval(()=>bars.forEach(x=>x.style.height=(6+Math.random()*44)+"px"),90);
+  S.vw=setInterval(async()=>{n++;out=words.slice(0,n).join(" ");$("#vlg").textContent=vlog()+"\n\n🎙 "+out+(n<words.length?" …":"");
+   if(n<words.length)return;stopVoice();b.classList.remove("rec");bars.forEach(x=>x.style.height="6px");$("#vst").textContent="Working…";
+   const ag=D.agents.find(a=>cmd.includes(a.name))||D.agents[0];
+   try{const r=await API.run(ag.id,cmd.replace(/^Run .*? (on|for) /,""));S.vlog.unshift(`🎙 "${cmd}"\n→ ${ag.name} finished · ${r.tokens} tokens`);S.vlog.length=Math.min(S.vlog.length,6);log("voice.run "+ag.name)}
+   catch(e){S.vlog.unshift(`🎙 "${cmd}"\n→ ${e.message}`)}
+   const l=$("#vlg");if(l)l.textContent=vlog();const s=$("#vst");if(s)s.textContent="Tap to speak"},300)},
+ // analyzer
+ pick(){$("#fi").click()},
+ addn(b){need("create");if(S.flow.n.length>=12)throw Error("Flow is limited to 12 nodes");S.flow.n.push(+b.dataset.id);$("#fw").innerHTML=fsvg()},
+ nd(b){const f=S.flow,i=+b.dataset.id;if(f.sel===null)f.sel=i;else if(f.sel===i)f.sel=null;else{if(!f.e.some(e=>e[0]===f.sel&&e[1]===i))f.e.push([f.sel,i]);f.sel=null}$("#fw").innerHTML=fsvg()},
+ fclr(){S.flow={n:[],e:[],sel:null};$("#fw").innerHTML=fsvg();$("#fo").hidden=true},
+ async frun(){const f=S.flow;if(!f.n.length)throw Error("Add at least one node");const o=$("#fo"),seen=new Set(),q=f.n.map((_,i)=>i).filter(i=>!f.e.some(e=>e[1]===i)),order=[];o.hidden=false;o.textContent="";
+  while(q.length){const i=q.shift();if(seen.has(i))continue;seen.add(i);order.push(i);f.e.filter(e=>e[0]===i).forEach(e=>q.push(e[1]))}
+  f.n.forEach((_,i)=>{if(!seen.has(i))order.push(i)});for(const i of order){await sleep(350);o.textContent+=`✓ ${NT[f.n[i]][0]} ${i+1}: ${NM[f.n[i]]}\n`}o.textContent+="Flow finished.";log("flow.run "+order.length+" nodes")},
+ async crawl(){const tp=$("#ct").value.trim();if(!tp)throw Error("Enter a topic");const o=$("#co"),sl=tp.toLowerCase().replace(/\W+/g,"-").slice(0,30),r=()=>(.7+Math.random()*.29).toFixed(2);o.hidden=false;o.textContent="";$("#dlr").hidden=true;
+  const L2=[`# Research report: ${tp}`,"_Simulated crawl: no network requests are made._","","## Plan","1. Expand the topic into 3 queries","2. Fetch and rank sources","3. Extract findings","","## Sources",`- https://example.org/${sl} (relevance ${r()})`,`- https://example.com/insights/${sl} (relevance ${r()})`,`- https://example.net/${sl}/review (relevance ${r()})`,"","## Findings","- Trend 1: adoption is shifting from pilots to production.","- Trend 2: usage-based pricing is replacing flat seats.","- Trend 3: buyers ask for audit trails and data export.","","## Summary",`Illustrative summary for "${tp}". Connect a live provider and crawler on the server to replace this simulation.`];
+  S.report="";for(const l of L2){await sleep(300);S.report+=l+"\n";o.textContent=S.report}$("#dlr").hidden=false;log("crawl "+tp)},
+ dlr(){dl("research-report.md",S.report,"text/markdown")},
+ qm(){need("create");const item=$("#qi").value.trim();if(!item)throw Error("Add an item");const id=uid();D.shares[id]={id,title:$("#qt").value||"Quote",client:$("#qc").value,item,qty:Math.max(1,+$("#qq").value||1),price:Math.max(0,+$("#qp").value||0),views:0,signups:0};save();
+  const u=location.href.split("#")[0]+"#/q/"+id;$("#qo").innerHTML=`<div class="o">${esc(u)}</div><div class="r"><button class="btn" data-a="cpu" data-id="${esc(u)}">${I("Share2")}Copy</button><button class="btn" data-go="q/${id}">${I("ChevronRight")}Client view</button></div>`;$("#trk").innerHTML=trk()},
+ cpu(b){cp(b.dataset.id)},
+ join(b){const s=D.shares[b.dataset.id];if(s){s.signups++;save()}S.am="up";location.hash="#/home";route()},
+ e2(){const a=$("#au");if(a)S.au=a.value;D.e2ee=!D.e2ee;save();route()},
+ async scan(){let tx=$("#au").value,rows;S.au=tx;let ex="";if(D.e2ee){const c=await enc(tx);tx=await c.dec();ex=`<p class="mu">${I("Lock")} E2EE: ${c.len} bytes AES-256-GCM ciphertext (${c.hex}…) decrypted in memory only.</p>`}
+  try{rows=JSON.parse(tx)}catch(e){throw Error("Invalid JSON: "+e.message)}const r=await API.audit(rows),cl={high:"var(--cr)",medium:"var(--am)",low:"var(--mi)","":"rgba(16,185,129,.35)"};
+  $("#ar2").innerHTML=`${ex}<p>${I("Activity")} ${r.checked} records · ${r.f.length} findings · Risk score <b class="${r.score>50?"high":r.score>20?"medium":"low"}">${r.score}/100</b></p><b class="mu">Anomaly matrix</b><div class="mx">${r.m.map((s,i)=>`<i title="#${i+1} ${esc(rows[i].id)} ${s||"clean"}" style="background:${cl[s]}"></i>`).join("")}</div><div class="sc"><table>${r.f.map(x=>`<tr><td>#${x.n} ${esc(x.id)}</td><td><span class="tg ${x.sev}">${x.sev}</span></td><td>${x.rule}</td><td class="mu">${x.d}</td></tr>`).join("")}</table></div>`},
+ async mfa(){const s=[...crypto.getRandomValues(new Uint8Array(10))].map(b=>"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b%32]).join("");S.u.mfa=s;sv("qv_u",U);route()},
+ mfx(){S.u.mfa="";sv("qv_u",U);route()},
+ async mvf(){toast($("#mv").value.trim()===await totp(S.u.mfa)?"Code is valid":"Code is not valid")},
+ async pk(){let real=false;try{await navigator.credentials.create({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),rp:{name:BRAND},user:{id:crypto.getRandomValues(new Uint8Array(16)),name:S.u.email,displayName:S.u.name},pubKeyCredParams:[{type:"public-key",alg:-7}],timeout:20000}});real=true}catch{await sleep(800)}S.u.pk=true;sv("qv_u",U);toast(real?"Passkey registered":"Passkey enrolled (simulated biometric)");route()},
+ prof(){S.u.name=$("#pn").value.trim()||S.u.name;S.u.phone=$("#pp").value.trim();S.u.cur=$("#pc2").value;sv("qv_u",U);toast("Profile saved");route()},
+ inv2(){need("invite");const e=$("#ie").value.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(e))throw Error("Enter a valid email");if(D.team.some(m=>m.e===e))throw Error("Already on the team");D.team.push({n:e.split("@")[0],e,r:$("#ir").value});save();route();toast("Invitation recorded (demo)")},
+ plan(b){S.sel=b.dataset.id;payUI()},meth(b){S.method=b.dataset.id;payUI()},
+ async card(b){const sk=S.sel+(S.cycle==="y"?"_y":"");if(STRIPE_LINKS[sk]){open(STRIPE_LINKS[sk],"_blank","noopener");return}const n=$("#cn").value.replace(/\s/g,""),m=$("#cx").value.match(/^(\d\d)\s*\/\s*(\d\d)$/);
+  if(!luhn(n))throw Error("Card number is invalid");if(!m||+m[1]<1||+m[1]>12||new Date(2000+ +m[2],+m[1])<new Date())throw Error("Card expiry is invalid");if(!/^\d{3,4}$/.test($("#cv").value))throw Error("CVC is invalid");
+  b.disabled=true;toast("Authorising…");await sleep(900);fin("card")},
+ btcpaid(){if(!S.qrok)throw Error("Enter a valid address or invoice first");fin("btc")},
+ btccp(){const u=$("#bq").dataset.uri;if(!u)throw Error("Enter a valid address first");cp(u)},
+ inv(b){const v=D.paid.find(x=>x.id===b.dataset.id),cy=(v.cur||"usd").toUpperCase(),f=n=>cy==="BTC"?Number(n).toFixed(8):Number(n).toFixed(2);dl(v.id+".pdf",pdf([`${BRAND} Invoice ${v.id}`,"Date: "+new Date(v.at).toISOString().slice(0,10),"Billed to: "+S.u.name+" <"+S.u.email+">","Plan: "+v.plan+" ("+(v.cyc==="y"?"yearly":"monthly")+")","Subtotal: "+cy+" "+f(v.sub),`Tax (${v.tx}%): ${cy} ${f(v.tax)}`,"Total: "+cy+" "+f(v.tot),"Paid via: "+v.m,...(v.txid?["TxID: "+v.txid]:[]),"","Founder & Chief Architect: "+FOUNDER]),"application/pdf")},
+ gk(){need("create");D.keys.unshift({id:uid(),k:"qvm_live_"+[...crypto.getRandomValues(new Uint8Array(12))].map(b=>b.toString(16).padStart(2,"0")).join("")});save();route()},
+ rk(b){D.keys=D.keys.filter(k=>k.id!==b.dataset.id);save();route()},
+ wa(){const u=$("#wh").value.trim();if(!/^https?:\/\/\S+$/.test(u))throw Error("Enter a valid http(s) URL");D.hooks=[u];save();toast("Endpoint saved")},
+ async wt(){const u=D.hooks[0];if(!u)throw Error("Save an endpoint first");await sleep(250);const body=JSON.stringify({event:"agent.run.completed",id:uid()});log(`POST ${u} 200 · HMAC sha256=${(await H(u+body)).slice(0,16)} · ${body}`)},
+ async ts(){if(!D.keys.length)throw Error("Generate an API key first");const ep=$("#ep").value,t0=performance.now();let r;
+  if(ep.includes("/agents/run"))r=await API.run(D.agents[0].id,"API ping");else if(ep.includes("/audit"))r=await API.audit([{id:"T1",amount:100,approvedBy:"x",date:"2026-11-03"}]);else r={agents:D.agents.length};
+  log(`${ep} 200 · ${Math.round(performance.now()-t0)} ms · ${D.keys[0].k.slice(0,14)}… · ${JSON.stringify(r).slice(0,90)}`)}};
+const C={
+ lang(e){S.lang=e.value;sv("qv_l",S.lang);route();loadPack(S.lang)},prov(e){S.prov=e.value},tax(e){S.tax=Math.min(40,Math.max(0,+e.value||0));payUI()},
+ pv(e){S.role=e.value;toast("Previewing as "+S.role);route()},
+ role(e){need("roles");D.team[+e.dataset.i].r=e.value;save();toast("Role updated")}};
+document.addEventListener("click",e=>{const b=e.target.closest("[data-go],[data-a]");if(!b)return;if(b.dataset.go){closeM();go(b.dataset.go,b.dataset.sc)}else guard(()=>A[b.dataset.a](b,e))});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.tagName==="INPUT"&&e.target.closest&&e.target.closest(".au")){e.preventDefault();const c=$(".au .cta");if(c)c.click();return}if((e.key==="Enter"||e.key===" ")&&e.target.id==="dz"){e.preventDefault();$("#fi").click()}});
+document.addEventListener("change",e=>{if(e.target.id==="pf"){const f=e.target.files[0];e.target.value="";guard(()=>importPack(f));return}if(e.target.id==="fi"){const f=e.target.files[0];e.target.value="";guard(()=>analyze(f));return}const c=e.target.dataset.c;if(c)guard(async()=>{try{await C[c](e.target)}catch(x){route();throw x}})});
+document.addEventListener("input",e=>{const x=e.target;if(x.id==="br")S.rate=+x.value||1;if(x.id==="bw"||x.id==="br")qr();
+ const w=x.closest&&x.closest(".fl");if(w){const v=x.value.trim(),id=x.id,ok=id==="ae"?/^\S+@\S+\.\S+$/.test(v):id==="ap"?x.value.length>=1:id==="ph"?/^[+\d][\d\s()-]{6,}$/.test(v):id==="mc"?/^\d{6}$/.test(v):v.length>1;w.classList.toggle("ok",!!v&&ok);w.classList.toggle("bad",!!v&&!ok)}
+ if(x.id==="ap"){const bar=$("#pwb");if(bar){const r=pwStrength(x.value),l=$("#pwl");bar.style.width=r.n+"%";bar.style.background=r.c;bar.style.color=r.c;l.textContent=r.l||"Any password works";l.style.color=r.c}}
+ if(x.id==="tx"){const v=x.value.trim().toUpperCase(),e=$("#txs");if(e){const ok=txOk(v),used=D.txids.includes(v);e.textContent=!v?"":!ok?"✗ 8-12 letters or digits":used?"✗ Already used":"✓ Format looks valid";e.style.color=!v?"":ok&&!used?"var(--mi)":"var(--cr)"}}});
+document.addEventListener("dragover",e=>{const z=e.target.closest&&e.target.closest("#dz");if(z){e.preventDefault();z.classList.add("hv")}});
+document.addEventListener("dragleave",e=>{const z=e.target.closest&&e.target.closest("#dz");if(z)z.classList.remove("hv")});
+document.addEventListener("drop",e=>{const z=e.target.closest&&e.target.closest("#dz");if(z){e.preventDefault();z.classList.remove("hv");const f=e.dataTransfer.files[0];guard(()=>analyze(f))}});
+addEventListener("hashchange",route);
+addEventListener("storage",e=>{if(e.key==="qv_d"){D=Object.assign(D,ld("qv_d",{}));if(cur()==="saas"&&$("#trk"))$("#trk").innerHTML=trk()}});
+addEventListener("beforeinstallprompt",e=>{e.preventDefault();S.evt=e;if(cur()==="home"&&S.u)route()});
+
+// ---------- offline PWA: /sw.js and /manifest.webmanifest are served by the backend script (_worker.js) ----------
+// Browsers only accept a service worker from a real same-origin http(s) URL, never a blob: URL, so the worker serves sw.js.
+if("serviceWorker" in navigator&&/^https?:$/.test(location.protocol))addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
+
+// ---------- ambient particle canvas (desktop only, ~25 fps, paused when hidden) ----------
+(()=>{const c=$("#bg"),x=c.getContext("2d"),RM=matchMedia("(prefers-reduced-motion:reduce)").matches,col=["#00f0ff","#6366f1","#10b981","#f7931a","#ff3366"];let w,h,Q=[],on=0,last=0;
+ const step=m=>{x.clearRect(0,0,w,h);Q.forEach((p,i)=>{if(m){p.x=(p.x+p.vx+w)%w;p.y=(p.y+p.vy+h)%h}x.globalAlpha=.7;x.fillStyle=col[i%5];x.beginPath();x.arc(p.x,p.y,1.6,0,6.3);x.fill();for(let j=i+1;j<Q.length;j++){const q=Q[j],d=Math.hypot(p.x-q.x,p.y-q.y);if(d<110){x.globalAlpha=(1-d/110)*.25;x.strokeStyle=col[i%5];x.beginPath();x.moveTo(p.x,p.y);x.lineTo(q.x,q.y);x.stroke()}}})};
+ const loop=t=>{if(document.hidden||!Q.length){on=0;return}if(t-last>40){last=t;step(1)}requestAnimationFrame(loop)};
+ const kick=()=>{if(RM||on||document.hidden||!Q.length)return;on=1;requestAnimationFrame(loop)};
+ const rs=()=>{w=c.width=innerWidth;h=c.height=innerHeight;Q=w<760?[]:Array.from({length:22},()=>({x:Math.random()*w,y:Math.random()*h,vx:(Math.random()-.5)*.35,vy:(Math.random()-.5)*.35}));x.clearRect(0,0,w,h);if(RM&&Q.length)step(0);kick()};
+ document.addEventListener("visibilitychange",kick);addEventListener("resize",()=>{clearTimeout(rs.t);rs.t=setTimeout(rs,200)});rs()})();
+
+// ---------- boot: splash with logo, then app ----------
+$("#spl").innerHTML=LOGO(96,"ls");
+route();loadPack(S.lang);
+setTimeout(()=>{const s=$("#spl");s.style.opacity=0;setTimeout(()=>s.remove(),300)},350);
+</script>
+</body>
+</html>
