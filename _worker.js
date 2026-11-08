@@ -1,11 +1,15 @@
 // Qvmpxt unified backend: ONE script for Cloudflare Workers / Pages (_worker.js) and Node 18+ (node _worker.js).
-// Router, data store, auth, agents, audit engine, billing, feed, team, API keys, webhooks, i18n packs,
-// share pages, service worker and PWA manifest. No dependencies.
+// Router, data store, auth (email + Google + GitHub), agents, BYOK Dedicated Gateway, audit engine, billing, feed, team,
+// API keys, webhooks, i18n packs, share pages, service worker and PWA manifest. No dependencies.
 //
 // Cloudflare Pages: put this file next to index.html (the Qvmpxt frontend; qvmpxt.html also works) and deploy.
 //   Optional bindings: QV_KV (KV namespace that stores the data snapshot).
 //   Env vars: JWT_SECRET (required in production), ANTHROPIC_API_KEY, MODEL, PUBLIC_URL, ALLOWED_ORIGIN, BRAND,
-//   OWNER_EMAIL (reviews mobile-banking payments), SITEMAP_PATHS (comma list of extra public paths),
+//   OWNER_EMAIL (reviews mobile-banking and Bitcoin payments), SITEMAP_PATHS (comma list of extra public paths),
+//   GOOGLE_CLIENT_ID (OAuth client of type "Web application"; your site must be listed under Authorized JavaScript origins),
+//   GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET (GitHub OAuth App; callback URL = PUBLIC_URL/api/auth/github/callback),
+//   TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID (the founder's bot; new sign-ups and feedback are sent there),
+//   BTC_LIGHTNING_ADDRESS (a Lightning address such as you@wallet.com; used for Bitcoin payments),
 //   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_STARTER/GROWTH/ENTERPRISE (+ _YEARLY variants),
 //   SANDBOX_BILLING=1 (lets /api/billing/subscribe activate plans without Stripe; for testing only).
 // Node: node _worker.js (Node 22+ detects ESM; on Node 18/20 save as server.mjs or add {"type":"module"} to package.json).
@@ -13,14 +17,16 @@
 //   Data persists to ./qvmpxt-data.json (override with QV_DATA=/path, disable with QV_DATA=off). Keep it out of git.
 
 const DEFAULT_BRAND = 'Qvmpxt';
-// price = USD monthly, yearly = USD yearly, bdt / btc = [monthly, yearly]
+// price = USD monthly, yearly = USD yearly, bdt / btc = [monthly, yearly]; keys = active API keys, seats = team seats (owner included)
 const PLANS = {
-  starter: { price: 9, yearly: 89, runs: 300, bdt: [990, 9900], btc: [0.00009, 0.0009] },
-  growth: { price: 29, yearly: 289, runs: 2000, bdt: [2990, 28900], btc: [0.0003, 0.0028] },
-  enterprise: { price: 99, yearly: 989, runs: 20000, bdt: [9900, 98900], btc: [0.001, 0.01] },
+  starter: { price: 9, yearly: 89, runs: 300, keys: 3, seats: 5, bdt: [990, 9900], btc: [0.00009, 0.0009] },
+  growth: { price: 29, yearly: 289, runs: 2000, keys: 10, seats: 15, bdt: [2990, 28900], btc: [0.0003, 0.0028] },
+  enterprise: { price: 99, yearly: 989, runs: 20000, keys: 9999, seats: 9999, bdt: [9900, 98900], btc: [0.001, 0.01] },
 };
 const COMMISSION_PCT = 15, MOBILE = ['bkash', 'nagad', 'rocket'];
 const FREE_RUNS = 50, RATE_PER_1K_TOKENS = 0.002, TOKEN_TTL_MS = 864e5, PBKDF2_ITER = 100000, DB_KEY = 'qvmpxt:db';
+const FREE = { runs: FREE_RUNS, keys: 1, seats: 2 }; // generous free tier: 50 runs, 1 API key, 2 team seats (owner included)
+const HISTORY_PER_USER = 300, HISTORY_TYPES = ['run', 'quote', 'audit', 'ocr', 'voice', 'flow', 'note'], CLIENT_HISTORY_TYPES = ['ocr', 'voice', 'flow', 'note'];
 const enc = new TextEncoder(), dec = new TextDecoder();
 
 // ---------- helpers ----------
@@ -35,14 +41,17 @@ const fail = (status, error) => json({ error }, status);
 const httpErr = (status, message) => Object.assign(new Error(message), { status });
 const safeEq = (a, b) => { if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
 const emailOk = (e) => /^\S+@\S+\.\S+$/.test(e || '') && e.length <= 120;
+const phoneOk = (s) => /^[+\d][\d\s()-]{6,19}$/.test(s || ''); // same shape the frontend sign-up form accepts, capped at 20 characters
 const brandOf = (env) => env.BRAND || DEFAULT_BRAND;
 const splitCommission = (gross) => { const c = Math.round(gross * 100), f = Math.round(c * COMMISSION_PCT / 100); return { gross: c / 100, fee: f / 100, net: (c - f) / 100 }; };
 const publicItem = ({ id, by, name, task, buy, rent, sales }) => ({ id, by, name, task, buy, rent, sales });
 const cleanItems = (a) => (Array.isArray(a) ? a : []).slice(0, 50).map((i) => ({ name: String((i && i.name) || 'Item').slice(0, 80), qty: Math.max(1, Math.min(1e6, +(i && i.qty) || 1)), price: Math.max(0, Math.min(1e9, +(i && i.price) || 0)) }));
+const totalOf = (items) => +items.reduce((a, i) => a + i.qty * i.price, 0).toFixed(2);
 const feedView = (p, u) => ({ ...p, likes: p.likes.length, liked: !!u && p.likes.includes(u.email), cm: p.cm.slice(-50) }); // never expose who liked
 const PRIVATE_HOST = /^(localhost|.*\.localhost|.*\.local|.*\.internal|127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|\[|\d+$|0x)/i;
 const validHookUrl = (s) => { try { const u = new URL(s); return /^https?:$/.test(u.protocol) && !u.username && !u.password && !PRIVATE_HOST.test(u.hostname); } catch { return false; } };
 const normLang = (c) => /^[a-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$/.test(c || '') ? c : null;
+const intParam = (v, def, min, max) => { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : def; };
 
 // ---------- data store: in-memory, snapshotted to env.QV_KV (Workers KV, or a file when running on Node) ----------
 const seedAgents = () => [
@@ -59,13 +68,24 @@ const seedMarket = () => [
   ['Rafi Ahmed', 'Contract Risk Reader', 'List risky clauses and suggest safer wording.', 49, 9],
   ['Noor Hasan', 'Bangla Support Replier', 'Draft a polite support reply in Bangla and English.', 19, 0],
 ].map(([by, name, task, buy, rent]) => ({ id: rid(), by, email: 'seed@qvmpxt.demo', name, task, buy, rent, sales: 0, created: Date.now() }));
-const freshDB = () => ({ users: {}, agents: seedAgents(), runs: [], shares: {}, feed: seedFeed(), keys: {}, hooks: {}, teams: {}, packs: {}, hits: {}, market: seedMarket(), orders: [], payments: {} });
+const freshDB = () => ({ users: {}, agents: seedAgents(), runs: [], shares: {}, feed: seedFeed(), keys: {}, hooks: {}, teams: {}, packs: {}, hits: {}, market: seedMarket(), orders: [], payments: {}, history: [], hmig: 1, feedback: [], notified: {} });
+
+// Snapshots written before the unified history existed get their runs and quote links copied into it once.
+const quoteEntry = (owner, s, id) => ({ id: id || rid(), owner, type: 'quote', title: s.title, summary: `${s.items.length} item(s), total $${totalOf(s.items).toFixed(2)}${s.to ? ' for ' + s.to : ''}`, detail: { shareId: s.id, url: `/s/${s.id}`, to: s.to, total: totalOf(s.items) }, at: s.created });
+function migrate(d) {
+  if (d.hmig) return d;
+  d.hmig = 1; d.history = Array.isArray(d.history) ? d.history : [];
+  for (const r of d.runs || []) d.history.push({ id: 'r' + r.id, owner: r.owner, type: 'run', title: r.agent, summary: String(r.input || '').slice(0, 200), detail: { runId: r.id, agent: r.agent, input: r.input, output: String(r.output || '').slice(0, 2000), tokens: r.tokens, ms: r.ms }, at: r.at });
+  for (const s of Object.values(d.shares || {})) d.history.push(quoteEntry(s.owner, s, 'q' + s.id));
+  d.history.sort((a, b) => b.at - a.at);
+  return d;
+}
 
 let DB = null, DB_AT = 0, WROTE = 0, dirty = false, flushing = false;
 async function loadDB(env) {
   // Keep the in-memory copy while writes are pending or recent: KV is eventually consistent and a stale read would erase them.
   if (DB && (!env.QV_KV || dirty || flushing || Date.now() - DB_AT < 5000 || Date.now() - WROTE < 60000)) return DB;
-  if (env.QV_KV) { try { const s = await env.QV_KV.get(DB_KEY); if (s) { DB = Object.assign(freshDB(), JSON.parse(s)); DB.hits = {}; DB_AT = Date.now(); return DB; } } catch { /* use fresh */ } }
+  if (env.QV_KV) { try { const s = await env.QV_KV.get(DB_KEY); if (s) { DB = migrate(Object.assign(freshDB(), JSON.parse(s))); DB.hits = {}; DB_AT = Date.now(); return DB; } } catch { /* use fresh */ } }
   DB = DB || freshDB(); DB_AT = Date.now(); return DB;
 }
 async function flush(env) { // coalesces bursts of changes into as few writes as possible
@@ -84,6 +104,17 @@ async function saveDB(env, ctx) {
   const job = flush(env);
   if (ctx && ctx.waitUntil) ctx.waitUntil(job); else await job;
 }
+
+// Unified "My Projects & History" log. Each user keeps their newest HISTORY_PER_USER entries; nobody else's activity can evict them.
+function logHistory(db, e) {
+  e.id = e.id || rid(); e.at = e.at || Date.now();
+  db.history.unshift(e);
+  let n = 0;
+  for (let i = 0; i < db.history.length; i++) if (db.history[i].owner === e.owner && ++n > HISTORY_PER_USER) { db.history.splice(i, 1); break; }
+  if (db.history.length > 20000) db.history.length = 20000;
+  return e;
+}
+const historyView = ({ id, type, title, summary, detail, at }) => ({ id, type, title, summary, detail, at });
 
 // ---------- crypto: PBKDF2 passwords, HMAC tokens and signatures (Web Crypto: Workers and Node) ----------
 let EPHEMERAL = null;
@@ -118,9 +149,12 @@ function limited(db, req, bucket, max, windowMs) {
 }
 
 // ---------- business logic ----------
-const planOf = (u) => (u.planUntil && u.planUntil < Date.now() ? 'free' : u.plan); // mobile-banking plans expire; Stripe plans are managed by webhooks
-const limitFor = (u) => (PLANS[planOf(u)] ? PLANS[planOf(u)].runs : FREE_RUNS);
+const planOf = (u) => (u.planUntil && u.planUntil < Date.now() ? 'free' : u.plan); // mobile-banking and Bitcoin plans expire; Stripe plans are managed by webhooks
+const capOf = (u) => PLANS[planOf(u)] || FREE; // what the user's current plan allows: runs, keys, seats
+const limitFor = (u) => capOf(u).runs;
 const roll = (u) => { const p = new Date().toISOString().slice(0, 7); if (u.period !== p) { u.period = p; u.used = 0; } return u; }; // run counter resets every month
+const CURRENCIES = ['USD', 'BTC', 'BDT'];
+const profileOf = (u) => ({ email: u.email, name: u.name, phone: u.phone || '', company: u.company || '', addr: u.addr || '', cur: u.cur || 'USD' });
 
 async function llm(env, agent, input) {
   if (!env.ANTHROPIC_API_KEY) return `[simulated] ${agent.name} processed: "${input.slice(0, 80)}". Set ANTHROPIC_API_KEY for live model output.`;
@@ -136,6 +170,27 @@ async function llm(env, agent, input) {
   if (!res.ok) throw new Error((j.error && j.error.message) || 'Model request failed');
   return (j.content || []).map((c) => c.text || '').join('');
 }
+
+// Dedicated Gateway (BYOK): runs the agent on the user's own OpenAI / Claude / DeepSeek key. The key is used for that one request only,
+// is never stored or logged, and these runs do not count against the monthly quota.
+const BYOK = { openai: ['https://api.openai.com/v1/chat/completions', 'gpt-4o-mini'], deepseek: ['https://api.deepseek.com/chat/completions', 'deepseek-chat'], claude: ['https://api.anthropic.com/v1/messages', null] };
+const byokOf = (b) => {
+  if (!b) return null;
+  const provider = String(b.provider || '').toLowerCase(), key = String(b.key || '').trim();
+  if (!BYOK[provider]) throw httpErr(400, 'Provider must be openai, claude or deepseek');
+  if (!/^[\w.-]{8,200}$/.test(key)) throw httpErr(400, 'That API key does not look valid');
+  return { provider, key };
+};
+async function llmByok(env, { provider, key }, agent, input) {
+  const [endpoint, model] = BYOK[provider], claude = provider === 'claude';
+  const headers = claude ? { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' } : { 'content-type': 'application/json', authorization: 'Bearer ' + key };
+  const body = claude ? { model: env.MODEL || 'claude-sonnet-5-5', max_tokens: 800, system: agent.prompt, messages: [{ role: 'user', content: input }] } : { model, max_tokens: 800, messages: [{ role: 'system', content: agent.prompt }, { role: 'user', content: input }] };
+  let res, j;
+  try { res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(25000) }); j = await res.json(); } catch { throw new Error('Your provider did not respond in time'); }
+  if (!res.ok) throw new Error(String((j.error && (j.error.message || j.error)) || 'Provider rejected the request').split(key).join('***').slice(0, 200));
+  return claude ? (j.content || []).map((c) => c.text || '').join('') : String((((j.choices || [])[0] || {}).message || {}).content || '');
+}
+
 function auditRows(rows) {
   const am = rows.map((x) => +x.amount || 0), mean = am.reduce((a, b) => a + b, 0) / am.length;
   const sd = Math.sqrt(am.reduce((a, b) => a + (b - mean) ** 2, 0) / am.length) || 1, seen = new Set(), out = [];
@@ -158,6 +213,27 @@ async function fireHook(h, event, payload) {
     return { status: r.status, signature: 'sha256=' + sig.slice(0, 16) + '...' };
   } catch { return { status: 0, error: 'Delivery failed' }; }
 }
+// Sends a plain-text message to the founder's Telegram bot. Never throws and does nothing when the bot is not configured.
+async function tg(env, text) {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return;
+  try {
+    await fetch(`${env.TELEGRAM_API || 'https://api.telegram.org'}/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: String(text).slice(0, 4000), disable_web_page_preview: true }), signal: AbortSignal.timeout(8000) });
+  } catch { /* the app keeps working if Telegram is down */ }
+}
+const background = (ctx, job) => { if (ctx && ctx.waitUntil) ctx.waitUntil(job); else job.catch(() => {}); };
+
+// Asks the Lightning address provider (LNURL-pay) for an invoice with the exact amount, so the QR code is ready to scan. Returns null when it cannot.
+async function lnInvoice(addr, sats) {
+  const [name, host] = addr.split('@'), ms = sats * 1000, sig = () => AbortSignal.timeout(6000);
+  try {
+    const a = await (await fetch(`https://${host}/.well-known/lnurlp/${encodeURIComponent(name)}`, { signal: sig(), redirect: 'error' })).json();
+    if (!a || a.tag !== 'payRequest' || !a.callback || ms < a.minSendable || ms > a.maxSendable) return null;
+    const cb = new URL(a.callback); if (cb.protocol !== 'https:') return null;
+    cb.searchParams.set('amount', String(ms));
+    const b = await (await fetch(cb, { signal: sig(), redirect: 'error' })).json();
+    return b && typeof b.pr === 'string' && /^ln(bc|tb)/i.test(b.pr) ? b.pr : null;
+  } catch { return null; }
+}
 
 // ---------- PWA assets served by this script ----------
 // Stale-while-revalidate: the app shell opens instantly from cache and refreshes in the background.
@@ -177,7 +253,7 @@ const MANIFEST = (brand) => JSON.stringify({ name: brand, short_name: brand, sta
 
 // ---------- API router ----------
 async function api(req, env, ctx, url) {
-  const p = url.pathname, m = req.method, brand = brandOf(env), db = await loadDB(env);
+  const p = url.pathname, m = req.method, brand = brandOf(env), db = await loadDB(env), q = url.searchParams;
   const readBody = async () => {
     if (m === 'GET' || m === 'DELETE') return {};
     const t = await req.text(); if (t.length > 400000) throw httpErr(413, 'Payload too large');
@@ -189,33 +265,136 @@ async function api(req, env, ctx, url) {
   const write = (u) => { if (roleOf(u) === 'Viewer') throw httpErr(403, 'Role Viewer cannot change data'); };
   const admin = (u) => { if (roleOf(u) !== 'Admin') throw httpErr(403, 'Admin role required'); };
   const owner = (u) => { if (!env.OWNER_EMAIL) throw httpErr(403, 'Set OWNER_EMAIL to review payments'); if (u.email !== String(env.OWNER_EMAIL).trim().toLowerCase()) throw httpErr(403, 'Owner only'); };
+  const seatsUsed = (email) => 1 + Object.values(db.teams).filter((t) => t.owner === email).length; // the owner plus every invited person (pending invitations count too)
+  const keysUsed = (email) => Object.values(db.keys).filter((k) => k.owner === email).length;
+  const limitsOf = (u) => { const c = capOf(u); return { runs: c.runs, keys: { used: keysUsed(u.email), limit: c.keys }, seats: { used: seatsUsed(u.email), limit: c.seats } }; };
+  db.feedback = db.feedback || []; db.notified = db.notified || {};
+  const announce = (name, email, phone, how) => { // one Telegram message per new account, even if both the app and the API report it
+    if (db.notified[email]) return false;
+    if (Object.keys(db.notified).length > 20000) db.notified = {};
+    db.notified[email] = Date.now();
+    background(ctx, tg(env, `New ${brand} sign-up (${how})\nName: ${name}\nEmail: ${email}\nPhone: ${phone || 'not given'}\nTime: ${new Date().toISOString()}`));
+    return true;
+  };
   let mm;
+
+  // public settings the browser needs: which social sign-in methods are configured (no secrets)
+  if (p === '/api/config' && m === 'GET') return json({ googleClientId: env.GOOGLE_CLIENT_ID || '', github: !!(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET), brand });
+
+  // Google sign-in: the app sends the access token from Google's "Choose an account" popup; we verify it with Google (audience + verified email)
+  if (p === '/api/auth/google' && m === 'POST') {
+    if (!env.GOOGLE_CLIENT_ID) return fail(503, 'Google sign-in is not configured');
+    if (limited(db, req, 'auth', 20, 60000)) return fail(429, 'Too many attempts. Try again in a minute.');
+    const tok = String((await readBody()).access_token || ''); let ti, g;
+    try {
+      ti = await (await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(tok), { signal: AbortSignal.timeout(8000) })).json();
+      g = await (await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { authorization: 'Bearer ' + tok }, signal: AbortSignal.timeout(8000) })).json();
+    } catch { return fail(502, 'Google could not be reached'); }
+    const email = String(g.email || '').toLowerCase();
+    if ((ti.aud !== env.GOOGLE_CLIENT_ID && ti.azp !== env.GOOGLE_CLIENT_ID) || g.email_verified !== true || !emailOk(email)) return fail(401, 'Google sign-in could not be verified');
+    let u = db.users[email];
+    if (u && u.hash) return fail(409, 'This email already has a password account. Sign in with your password.');
+    if (!u) {
+      const name = String(g.name || email.split('@')[0]).slice(0, 60);
+      u = db.users[email] = { email, name, phone: '', cur: 'USD', salt: '', hash: '', social: 'google', plan: 'free', used: 0, tokens: 0, cost: 0, created: Date.now() };
+      announce(name, email, '', 'Google'); await saveDB(env, ctx);
+    }
+    return json({ token: await signToken(env, email), plan: planOf(u), name: u.name, phone: u.phone || '', email });
+  }
+
+  // GitHub OAuth (server-side code flow). Create an OAuth App on GitHub with callback URL = PUBLIC_URL/api/auth/github/callback
+  const ghBase = (env.PUBLIC_URL || url.origin).replace(/\/+$/, ''), ghCb = ghBase + '/api/auth/github/callback';
+  const ghCookie = (v, age) => `qv_gh=${v}; Path=/api/auth/github; HttpOnly; SameSite=Lax; Max-Age=${age}` + (ghBase.startsWith('https') ? '; Secure' : '');
+  if (p === '/api/auth/github' && m === 'GET') {
+    if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) return fail(503, 'GitHub sign-in is not configured');
+    if (limited(db, req, 'auth', 20, 60000)) return fail(429, 'Too many attempts. Try again in a minute.');
+    const st = rid(16); // the state also goes into a short-lived cookie, so only the browser that started the flow can finish it
+    return new Response(null, { status: 302, headers: { location: 'https://github.com/login/oauth/authorize?' + new URLSearchParams({ client_id: env.GITHUB_CLIENT_ID, redirect_uri: ghCb, scope: 'read:user user:email', state: st }), 'set-cookie': ghCookie(st, 600) } });
+  }
+  if (p === '/api/auth/github/callback' && m === 'GET') {
+    const back = (msg, tok) => new Response(null, { status: 302, headers: { location: ghBase + '/#' + (tok ? 'qv_gh=' + tok : 'qv_err=' + encodeURIComponent(msg)), 'set-cookie': ghCookie('', 0) } });
+    const ck = /(?:^|;\s*)qv_gh=(\w+)/.exec(req.headers.get('cookie') || ''), code = q.get('code') || '', state = q.get('state') || '';
+    if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) return back('GitHub sign-in is not configured');
+    if (!ck || !code || !safeEq(ck[1], state)) return back('GitHub sign-in expired. Please try again.');
+    const sig = () => AbortSignal.timeout(8000); let me, ems, tr;
+    try {
+      tr = await (await fetch('https://github.com/login/oauth/access_token', { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/json' }, body: JSON.stringify({ client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET, code, redirect_uri: ghCb }), signal: sig() })).json();
+      if (!tr.access_token) return back('GitHub did not approve the sign-in');
+      const gh = { authorization: 'Bearer ' + tr.access_token, accept: 'application/vnd.github+json', 'user-agent': brand };
+      me = await (await fetch('https://api.github.com/user', { headers: gh, signal: sig() })).json();
+      ems = await (await fetch('https://api.github.com/user/emails', { headers: gh, signal: sig() })).json();
+    } catch { return back('GitHub could not be reached'); }
+    const pe = Array.isArray(ems) ? ems.find((x) => x.primary && x.verified) : null, email = String((pe && pe.email) || '').toLowerCase();
+    if (!emailOk(email)) return back('Your GitHub account needs a verified primary email');
+    let u = db.users[email];
+    if (u && u.hash) return back('This email already has a password account. Sign in with your password.');
+    if (!u) {
+      const name = String(me.name || me.login || email.split('@')[0]).slice(0, 60);
+      u = db.users[email] = { email, name, phone: '', cur: 'USD', salt: '', hash: '', social: 'github', plan: 'free', used: 0, tokens: 0, cost: 0, created: Date.now() };
+      announce(name, email, '', 'GitHub'); await saveDB(env, ctx);
+    }
+    return back('', await signToken(env, email));
+  }
 
   if (p === '/api/health') return json({ ok: true, brand, time: Date.now(), storage: env.QV_KV ? (env.QV_KV.kind || 'kv') : 'memory', model: env.ANTHROPIC_API_KEY ? 'live' : 'simulated' });
 
-  // auth
+  // auth: a phone number is required at sign-up and stored with the account
   if (p === '/api/auth/register' && m === 'POST') {
     if (limited(db, req, 'auth', 20, 60000)) return fail(429, 'Too many attempts. Try again in a minute.');
-    const b = await readBody(), email = String(b.email || '').trim().toLowerCase();
+    const b = await readBody(), email = String(b.email || '').trim().toLowerCase(), phone = String(b.phone || '').trim();
     if (!emailOk(email) || !String(b.password || '')) return fail(400, 'A valid email and a password are required');
+    if (!phoneOk(phone)) return fail(400, 'A valid phone number is required');
     if (db.users[email]) return fail(409, 'Account already exists');
     const salt = rid(8), name = String(b.name || email.split('@')[0]).slice(0, 60);
-    db.users[email] = { email, name, salt, hash: await hashPw(String(b.password), salt), plan: 'free', used: 0, tokens: 0, cost: 0, created: Date.now() };
+    db.users[email] = { email, name, phone, cur: 'USD', salt, hash: await hashPw(String(b.password), salt), plan: 'free', used: 0, tokens: 0, cost: 0, created: Date.now() };
     if (b.ref && db.shares[b.ref]) db.shares[b.ref].signups++;
+    announce(name, email, phone, 'API');
     await saveDB(env, ctx);
-    return json({ token: await signToken(env, email), plan: 'free', name });
+    return json({ token: await signToken(env, email), plan: 'free', name, phone });
   }
   if (p === '/api/auth/login' && m === 'POST') {
     if (limited(db, req, 'auth', 20, 60000)) return fail(429, 'Too many attempts. Try again in a minute.');
     const b = await readBody(), u = db.users[String(b.email || '').trim().toLowerCase()], pw = String(b.password || '');
-    const ok = u ? safeEq(await hashPw(pw, u.salt), u.hash) : (await hashPw(pw, 'x'), false); // same work either way, so timing does not reveal which emails exist
+    const ok = u && u.hash ? safeEq(await hashPw(pw, u.salt), u.hash) : (await hashPw(pw, 'x'), false); // same work either way, so timing does not reveal which emails exist; Google/GitHub accounts have no password
     if (!ok) return fail(401, 'Wrong email or password');
-    return json({ token: await signToken(env, u.email), plan: planOf(u), name: u.name });
+    return json({ token: await signToken(env, u.email), plan: planOf(u), name: u.name, phone: u.phone || '' });
   }
   if (p === '/api/me' && m === 'GET') {
     const u = roll(await needUser());
-    return json({ email: u.email, name: u.name, plan: planOf(u), role: roleOf(u), used: u.used, limit: limitFor(u), tokens: u.tokens, created: u.created });
+    return json({ ...profileOf(u), plan: planOf(u), role: roleOf(u), used: u.used, limit: limitFor(u), tokens: u.tokens, created: u.created, limits: limitsOf(u) });
   }
+  if (p === '/api/me' && m === 'PUT') { // update profile and contact details
+    const u = await needUser(), b = await readBody();
+    if (b.name !== undefined) { const n = String(b.name).trim().slice(0, 60); if (!n) return fail(400, 'Name cannot be empty'); u.name = n; }
+    if (b.phone !== undefined) { const ph = String(b.phone).trim(); if (!phoneOk(ph)) return fail(400, 'A valid phone number is required'); u.phone = ph; }
+    if (b.company !== undefined) u.company = String(b.company).trim().slice(0, 80);
+    if (b.addr !== undefined) u.addr = String(b.addr).trim().slice(0, 200);
+    if (b.cur !== undefined) { if (!CURRENCIES.includes(b.cur)) return fail(400, 'Currency must be USD, BTC or BDT'); u.cur = b.cur; }
+    await saveDB(env, ctx); return json(profileOf(u));
+  }
+
+  // the browser app reports new accounts here so the founder is told on Telegram (no password is ever sent)
+  if (p === '/api/notify/signup' && m === 'POST') {
+    if (limited(db, req, 'notify', 10, 60000)) return fail(429, 'Too many requests. Try again in a minute.');
+    const b = await readBody(), email = String(b.email || '').trim().toLowerCase(), phone = String(b.phone || '').trim();
+    if (!emailOk(email)) return fail(400, 'A valid email is required');
+    if (announce(String(b.name || email.split('@')[0]).slice(0, 60), email, phoneOk(phone) ? phone : '', 'app')) await saveDB(env, ctx);
+    return json({ ok: true });
+  }
+
+  // feedback and messages to the founder: stored, and forwarded to Telegram when the bot is configured
+  if (p === '/api/feedback' && m === 'POST') {
+    if (limited(db, req, 'feedback', 5, 60000)) return fail(429, 'Too many messages. Try again in a minute.');
+    const u = await maybeUser(), b = await readBody(), message = String(b.message || '').trim().slice(0, 2000);
+    if (message.length < 5) return fail(400, 'Write at least 5 characters');
+    const type = ['Feedback', 'Idea', 'Problem', 'Question'].includes(b.type) ? b.type : 'Feedback';
+    const name = String(u ? u.name : (b.name || 'Guest')).slice(0, 60), email = String(u ? u.email : (b.email || '')).slice(0, 120);
+    db.feedback.unshift({ id: rid(), type, name, email, message, at: Date.now() }); db.feedback.length = Math.min(db.feedback.length, 300);
+    await saveDB(env, ctx);
+    background(ctx, tg(env, `${type} for the ${brand} founder\nFrom: ${name}${email ? ' <' + email + '>' : ''}\n\n${message}`));
+    return json({ sent: true });
+  }
+  if (p === '/api/feedback' && m === 'GET') { const u = await needUser(); owner(u); return json(db.feedback.slice(0, 100)); } // the owner can read messages even without Telegram
 
   // agents + runs: you only see system agents and your own
   if (p === '/api/agents' && m === 'GET') {
@@ -228,31 +407,65 @@ async function api(req, env, ctx, url) {
     const a = { id: rid(), name: String(b.name).slice(0, 60), prompt: String(b.prompt).slice(0, 1000), owner: u.email, created: Date.now() };
     db.agents.unshift(a); await saveDB(env, ctx); return json(a);
   }
+  // Two modes. Managed: the platform engine runs it and the plan's monthly quota applies. Dedicated Gateway (BYOK): send
+  // {"input":"...","byok":{"provider":"openai|claude|deepseek","key":"..."}} and the run uses your own key and skips the monthly quota.
+  // The agent is looked up by id, or sent inline as {"agent":{"name":"...","prompt":"..."}} (what the browser app does).
   if ((mm = p.match(/^\/api\/agents\/([\w-]+)\/run$/)) && m === 'POST') {
     const u = roll(await needUser());
-    if (limited(db, req, 'run', 30, 60000)) return fail(429, 'Too many runs. Try again in a minute.');
-    const a = db.agents.find((x) => x.id === mm[1] && (x.owner === 'system' || x.owner === u.email)), input = String((await readBody()).input || '').slice(0, 2000);
+    // API gateway rate limit by plan (also applies to qvm_live_ API keys)
+    if (limited(db, req, 'run:' + u.email, { free: 30, starter: 60, growth: 300, enterprise: 1200 }[planOf(u)] || 30, 60000)) return fail(429, 'Rate limit reached for your plan. Try again in a minute.');
+    const body = await readBody(), inline = body.agent && typeof body.agent === 'object' && String(body.agent.prompt || '').trim() ? { id: 'inline', name: String(body.agent.name || 'Agent').slice(0, 60), prompt: String(body.agent.prompt).slice(0, 1000), owner: u.email } : null; // the app keeps agents on the device and sends the chosen one with the request
+    const a = inline || db.agents.find((x) => x.id === mm[1] && (x.owner === 'system' || x.owner === u.email)), input = String(body.input || '').slice(0, 2000), byok = byokOf(body.byok);
     if (!a) return fail(404, 'Agent not found');
     if (a.rentUntil && Date.now() > a.rentUntil) return fail(402, 'Rental expired. Rent it again in the marketplace.');
     if (!input.trim()) return fail(400, 'Type an input first');
-    if (u.used >= limitFor(u)) return fail(402, 'Run limit reached. Upgrade your plan.');
+    if (!byok && u.used >= limitFor(u)) return fail(402, 'Run limit reached. Upgrade your plan, or connect your own API key to use the Dedicated Gateway.');
     const t0 = Date.now(), steps = [{ step: 'plan', at: 0, note: 'Read task and input' }];
-    let output; try { output = await llm(env, a, input); } catch (e) { return fail(502, e.message); }
-    steps.push({ step: 'model', at: Date.now() - t0, note: env.ANTHROPIC_API_KEY ? 'Live model call' : 'Simulated call' }, { step: 'done', at: Date.now() - t0, note: 'Result ready' });
-    const tokens = Math.ceil((a.prompt.length + input.length + output.length) / 4), cost = +(tokens / 1000 * RATE_PER_1K_TOKENS).toFixed(5);
-    u.used++; u.tokens += tokens; u.cost = +(u.cost + cost).toFixed(5);
-    const run = { id: rid(), agent: a.name, owner: u.email, input, output, steps, tokens, cost, ms: Date.now() - t0, at: Date.now() };
-    db.runs.unshift(run); db.runs.length = Math.min(db.runs.length, 500); await saveDB(env, ctx);
+    let output; try { output = byok ? await llmByok(env, byok, a, input) : await llm(env, a, input); } catch (e) { return fail(502, e.message); }
+    steps.push({ step: 'model', at: Date.now() - t0, note: byok ? 'Dedicated Gateway (' + byok.provider + ')' : (env.ANTHROPIC_API_KEY ? 'Live model call' : 'Simulated call') }, { step: 'done', at: Date.now() - t0, note: 'Result ready' });
+    const tokens = Math.ceil((a.prompt.length + input.length + output.length) / 4), cost = byok ? 0 : +(tokens / 1000 * RATE_PER_1K_TOKENS).toFixed(5); // BYOK tokens are billed by the user's own provider, not by us
+    if (!byok) u.used++; u.tokens += tokens; u.cost = +(u.cost + cost).toFixed(5);
+    const run = { id: rid(), agent: a.name, owner: u.email, input, output, steps, tokens, cost, gateway: byok ? byok.provider : 'managed', ms: Date.now() - t0, at: Date.now() };
+    db.runs.unshift(run); db.runs.length = Math.min(db.runs.length, 500);
+    logHistory(db, { id: 'r' + run.id, owner: u.email, type: 'run', title: a.name, summary: input.slice(0, 200), detail: { runId: run.id, agent: a.name, input, output: output.slice(0, 2000), tokens, ms: run.ms }, at: run.at });
+    await saveDB(env, ctx);
     const hook = db.hooks[u.email]; if (hook && ctx && ctx.waitUntil) ctx.waitUntil(fireHook(hook, 'agent.run.completed', { run: run.id, agent: a.name, tokens }));
     return json(run);
   }
-  if (p === '/api/runs' && m === 'GET') { const u = await needUser(); return json(db.runs.filter((x) => x.owner === u.email).slice(0, 20)); }
+  if (p === '/api/runs' && m === 'GET') { // ?q=text &limit=1-100 (default 20) &offset=0
+    const u = await needUser(), term = String(q.get('q') || '').trim().toLowerCase().slice(0, 100), limit = intParam(q.get('limit'), 20, 1, 100), offset = intParam(q.get('offset'), 0, 0, 1e6);
+    return json(db.runs.filter((x) => x.owner === u.email && (!term || (x.agent + ' ' + x.input + ' ' + x.output).toLowerCase().includes(term))).slice(offset, offset + limit));
+  }
+
+  // My Projects & History: runs, quote links, audit reports and client-logged items (OCR, voice, flow) in one searchable log
+  if (p === '/api/history' && m === 'GET') { // ?q=text &type=run|quote|audit|ocr|voice|flow|note &from=ms &to=ms &limit=1-100 (default 30) &offset=0
+    const u = await needUser(), term = String(q.get('q') || '').trim().toLowerCase().slice(0, 100), type = q.get('type') || '';
+    if (type && !HISTORY_TYPES.includes(type)) return fail(400, 'Unknown history type');
+    const from = +q.get('from') || 0, to = +q.get('to') || Infinity, limit = intParam(q.get('limit'), 30, 1, 100), offset = intParam(q.get('offset'), 0, 0, 1e6);
+    const base = db.history.filter((h) => h.owner === u.email && h.at >= from && h.at <= to && (!term || (h.title + ' ' + h.summary + ' ' + JSON.stringify(h.detail)).toLowerCase().includes(term)));
+    const counts = {}; for (const h of base) counts[h.type] = (counts[h.type] || 0) + 1;
+    const hit = type ? base.filter((h) => h.type === type) : base;
+    return json({ total: hit.length, counts, items: hit.slice(offset, offset + limit).map(historyView) });
+  }
+  if (p === '/api/history' && m === 'POST') { // lets the app log things that happen in the browser (OCR summaries, voice commands, flows)
+    const u = await needUser(); write(u); const b = await readBody();
+    if (!CLIENT_HISTORY_TYPES.includes(b.type)) return fail(400, 'type must be ' + CLIENT_HISTORY_TYPES.join(', '));
+    if (!b.title) return fail(400, 'title is required');
+    const e = logHistory(db, { owner: u.email, type: b.type, title: String(b.title).slice(0, 80), summary: String(b.summary || '').slice(0, 300), detail: { text: String(b.text || '').slice(0, 2000) } });
+    await saveDB(env, ctx); return json(historyView(e));
+  }
+  if ((mm = p.match(/^\/api\/history\/([\w-]+)$/)) && m === 'DELETE') {
+    const u = await needUser(), i = db.history.findIndex((h) => h.id === mm[1] && h.owner === u.email);
+    if (i < 0) return fail(404, 'History item not found');
+    db.history.splice(i, 1); await saveDB(env, ctx); return json({ deleted: true });
+  }
 
   // micro-SaaS quote links
   if (p === '/api/share' && m === 'POST') {
     const u = await needUser(); write(u); const b = await readBody(), items = cleanItems(b.items);
     if (!items.length) return fail(400, 'Add at least one line item');
     const id = rid(); db.shares[id] = { id, owner: u.email, title: String(b.title || 'Quote').slice(0, 80), to: String(b.to || '').slice(0, 80), items, views: 0, signups: 0, created: Date.now() };
+    logHistory(db, quoteEntry(u.email, db.shares[id]));
     await saveDB(env, ctx); return json({ id, url: `/s/${id}` });
   }
   if (p === '/api/share/stats' && m === 'GET') {
@@ -262,15 +475,18 @@ async function api(req, env, ctx, url) {
 
   // compliance audit
   if (p === '/api/audit' && m === 'POST') {
-    await needUser(); if (limited(db, req, 'audit', 30, 60000)) return fail(429, 'Too many audits. Try again in a minute.');
+    const u = await needUser(); if (limited(db, req, 'audit', 30, 60000)) return fail(429, 'Too many audits. Try again in a minute.');
     const rows = (await readBody()).rows;
     if (!Array.isArray(rows) || !rows.length) return fail(400, 'Provide rows to audit');
-    return json(auditRows(rows.slice(0, 5000).map((x) => (x && typeof x === 'object' ? x : {}))));
+    const report = auditRows(rows.slice(0, 5000).map((x) => (x && typeof x === 'object' ? x : {})));
+    logHistory(db, { owner: u.email, type: 'audit', title: 'Audit report', summary: `${report.flagged} flagged of ${report.checked} rows, risk score ${report.score}`, detail: { checked: report.checked, flagged: report.flagged, mean: report.mean, sd: report.sd, score: report.score, findings: report.findings.slice(0, 50) } });
+    await saveDB(env, ctx);
+    return json(report);
   }
 
   // billing
   if (p === '/api/billing/plans' && m === 'GET') return json(PLANS);
-  if (p === '/api/billing/usage' && m === 'GET') { const u = roll(await needUser()); return json({ plan: planOf(u), used: u.used, limit: limitFor(u), tokens: u.tokens, usageCost: u.cost, ratePer1kTokens: RATE_PER_1K_TOKENS, planUntil: u.planUntil || null }); }
+  if (p === '/api/billing/usage' && m === 'GET') { const u = roll(await needUser()); return json({ plan: planOf(u), used: u.used, limit: limitFor(u), tokens: u.tokens, usageCost: u.cost, ratePer1kTokens: RATE_PER_1K_TOKENS, planUntil: u.planUntil || null, limits: limitsOf(u) }); }
   if (p === '/api/billing/subscribe' && m === 'POST') {
     const u = await needUser(); admin(u); const b0 = await readBody(), plan = b0.plan, yearly = b0.cycle === 'yearly';
     if (!PLANS[plan]) return fail(400, 'Unknown plan');
@@ -309,6 +525,29 @@ async function api(req, env, ctx, url) {
     const yearly = b.cycle === 'yearly', rec = { id: rid(), txid: tx, provider: b.provider, plan: b.plan, cycle: yearly ? 'yearly' : 'monthly', amount: PLANS[b.plan].bdt[yearly ? 1 : 0], currency: 'BDT', email: u.email, status: 'pending', at: Date.now() };
     db.payments[tx] = rec; await saveDB(env, ctx); return json({ ...rec, message: 'Received. Your plan activates once the payment is verified.' });
   }
+
+  // Bitcoin (Lightning): GET returns what to pay (amount, Lightning address, and an exact-amount invoice when the provider supports it),
+  // POST submits the payment proof into the same pending queue the owner reviews for mobile banking.
+  if (p === '/api/billing/btc' && m === 'GET') {
+    const u = await needUser(), plan = q.get('plan'), yearly = q.get('cycle') === 'yearly'; admin(u);
+    if (!PLANS[plan]) return fail(400, 'Unknown plan');
+    const addr = String(env.BTC_LIGHTNING_ADDRESS || '').trim();
+    if (!/^[\w.+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(addr)) return fail(503, 'Bitcoin payments are not configured yet');
+    if (limited(db, req, 'btc', 20, 60000)) return fail(429, 'Too many requests. Try again in a minute.');
+    const btc = PLANS[plan].btc[yearly ? 1 : 0], sats = Math.round(btc * 1e8), invoice = await lnInvoice(addr, sats);
+    return json({ plan, cycle: yearly ? 'yearly' : 'monthly', btc, sats, address: addr, invoice, qr: invoice ? 'lightning:' + invoice : 'lightning:' + addr, note: invoice ? 'Scan the QR code with any Lightning wallet, then submit the payment hash or preimage.' : 'Pay the exact amount to the Lightning address, then submit the payment hash or preimage.' });
+  }
+  if (p === '/api/billing/btc' && m === 'POST') {
+    const u = await needUser(); admin(u); const b = await readBody(), proof = String(b.proof || '').trim().toLowerCase();
+    if (limited(db, req, 'pay', 10, 60000)) return fail(429, 'Too many attempts. Try again in a minute.');
+    if (!PLANS[b.plan]) return fail(400, 'Unknown plan');
+    if (!/^[a-z0-9]{16,128}$/.test(proof)) return fail(400, 'Enter the payment hash, preimage or transaction id (16-128 letters or digits)');
+    const key = 'btc:' + proof;
+    if (db.payments[key]) return fail(409, 'This payment proof was already submitted');
+    const yearly = b.cycle === 'yearly', rec = { id: rid(), txid: proof, provider: 'lightning', plan: b.plan, cycle: yearly ? 'yearly' : 'monthly', amount: PLANS[b.plan].btc[yearly ? 1 : 0], currency: 'BTC', email: u.email, status: 'pending', at: Date.now() };
+    db.payments[key] = rec; await saveDB(env, ctx); return json({ ...rec, message: 'Received. Your plan activates once the payment is verified.' });
+  }
+  if (p === '/api/billing/payments' && m === 'GET') { const u = await needUser(); return json(Object.values(db.payments).filter((x) => x.email === u.email).sort((a, b) => b.at - a.at).slice(0, 50)); } // your own submissions and their status
   if (p === '/api/billing/pending' && m === 'GET') { const u = await needUser(); owner(u); return json(Object.values(db.payments).filter((x) => x.status === 'pending')); }
   if ((mm = p.match(/^\/api\/billing\/(approve|reject)\/(\w+)$/)) && m === 'POST') {
     const u = await needUser(); owner(u); const rec = Object.values(db.payments).find((x) => x.id === mm[2]);
@@ -368,29 +607,41 @@ async function api(req, env, ctx, url) {
         db.agents.unshift(a); await saveDB(env, ctx); return json({ forked: 'agent', agent: a });
       }
       const id = rid(), d = post.data; db.shares[id] = { id, owner: u.email, title: String(d.title || post.t).slice(0, 72) + ' (fork)', to: String(d.to || '').slice(0, 80), items: cleanItems(d.items), views: 0, signups: 0, created: Date.now() };
+      logHistory(db, quoteEntry(u.email, db.shares[id]));
       await saveDB(env, ctx); return json({ forked: 'quote', url: `/s/${id}` });
     }
     await saveDB(env, ctx); return json(feedView(post, u));
   }
 
-  // team (RBAC): invitations only take effect after the invited person accepts
-  if (p === '/api/team' && m === 'GET') { const u = await needUser(); return json({ you: roleOf(u), members: Object.values(db.teams).filter((t) => t.owner === u.email || t.email === u.email) }); }
+  // team (RBAC): invitations only take effect after the invited person accepts; seats are limited by plan (owner included)
+  if (p === '/api/team' && m === 'GET') { const u = await needUser(); return json({ you: roleOf(u), seats: { used: seatsUsed(u.email), limit: capOf(u).seats }, members: Object.values(db.teams).filter((t) => t.owner === u.email || t.email === u.email) }); }
   if (p === '/api/team/invite' && m === 'POST') {
     const u = await needUser(); admin(u); const b = await readBody(), email = String(b.email || '').trim().toLowerCase();
     if (!emailOk(email)) return fail(400, 'Enter a valid email'); if (!['Admin', 'Editor', 'Viewer'].includes(b.role)) return fail(400, 'Role must be Admin, Editor or Viewer');
     if (email === u.email) return fail(400, 'You cannot invite yourself');
     if (db.teams[email] && db.teams[email].owner !== u.email) return fail(409, 'That person already belongs to another workspace');
-    db.teams[email] = { email, role: b.role, owner: u.email, invited: Date.now(), accepted: false }; await saveDB(env, ctx); return json(db.teams[email]);
+    const again = db.teams[email] && db.teams[email].owner === u.email, seats = capOf(u).seats; // changing the role of someone already invited does not use a new seat
+    if (!again && seatsUsed(u.email) >= seats) return fail(402, `Your plan includes ${seats} team seat${seats === 1 ? '' : 's'} (you take one). Remove a member or upgrade your plan.`);
+    db.teams[email] = { email, role: b.role, owner: u.email, invited: Date.now(), accepted: again ? db.teams[email].accepted : false }; await saveDB(env, ctx); return json(db.teams[email]);
   }
   if (p === '/api/team/accept' && m === 'POST') {
     const u = await needUser(), t = db.teams[u.email];
     if (!t) return fail(404, 'No invitation found'); t.accepted = true; await saveDB(env, ctx); return json(t);
   }
+  if ((mm = p.match(/^\/api\/team\/([^/]+)$/)) && m === 'DELETE') { // frees a seat; a member can also leave on their own
+    const u = await needUser(); let email; try { email = decodeURIComponent(mm[1]).trim().toLowerCase(); } catch { return fail(400, 'Invalid email'); }
+    const t = db.teams[email];
+    if (!t || !(t.owner === u.email || email === u.email)) return fail(404, 'Member not found');
+    if (t.owner === u.email) admin(u);
+    delete db.teams[email]; await saveDB(env, ctx); return json({ removed: true });
+  }
 
-  // developer API keys (stored hashed) + webhooks
+  // developer API keys (stored hashed) + webhooks; the number of active keys is limited by plan
   if (p === '/api/keys' && m === 'GET') { const u = await needUser(); return json(Object.entries(db.keys).filter(([, k]) => k.owner === u.email).map(([k, v]) => ({ key: v.hint || k.slice(0, 14) + '...' + k.slice(-4), id: v.id, created: v.created }))); }
   if (p === '/api/keys' && m === 'POST') {
-    const u = await needUser(); admin(u); const k = 'qvm_live_' + rid(16);
+    const u = await needUser(); admin(u); const limit = capOf(u).keys;
+    if (keysUsed(u.email) >= limit) return fail(402, `Your plan allows ${limit} active API key${limit === 1 ? '' : 's'}. Revoke one or upgrade your plan.`);
+    const k = 'qvm_live_' + rid(16);
     db.keys[await sha(k)] = { id: rid(4), owner: u.email, hint: k.slice(0, 14) + '...' + k.slice(-4), created: Date.now() }; await saveDB(env, ctx); return json({ key: k, note: 'Store this key now. It is only shown in full once.' });
   }
   if ((mm = p.match(/^\/api\/keys\/([\w]+)$/)) && m === 'DELETE') {
@@ -516,4 +767,4 @@ if (isNode) {
       rs.writeHead(res.status, h); rs.end(buf);
     } catch { rs.writeHead(500).end('Internal error'); }
   }).listen(PORT, () => console.log(`${brandOf(env)} API on http://localhost:${PORT}`));
-}
+  }
