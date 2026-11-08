@@ -1069,4 +1069,256 @@ async function api(req, env, ctx, url) {
   }
   if ((mm = p.match(/^\/api\/agents\/([\w-]+)\/memory$/))) {
     const u = await needUser();
-    if (m === 'GET') return json(await all(env, 'SELECT id,note,at FROM agent_memory WHERE owner=? AND agent_id=? ORDER BY at DESC LIMI
+    if (m === 'GET') return json(await all(env, 'SELECT id,note,at FROM agent_memory WHERE owner=? AND agent_id=? ORDER BY at DESC LIMIT 50', u.ws, mm[1]));
+    if (m === 'POST') {
+      await write(u); const note = String((await readBody(5000)).note || '').trim().slice(0, 400); if (!note) return fail(400, 'Write a note first');
+      await run(env, 'INSERT INTO agent_memory(id,owner,agent_id,note,at) VALUES(?,?,?,?,?)', rid(), u.ws, mm[1], note, Date.now());
+      await run(env, 'DELETE FROM agent_memory WHERE owner=? AND agent_id=? AND id NOT IN (SELECT id FROM agent_memory WHERE owner=? AND agent_id=? ORDER BY at DESC LIMIT 50)', u.ws, mm[1], u.ws, mm[1]);
+      return json({ saved: true });
+    }
+    if (m === 'DELETE') {
+      await write(u); const id = q.get('id');
+      if (id) await run(env, 'DELETE FROM agent_memory WHERE id=? AND owner=? AND agent_id=?', id, u.ws, mm[1]); else await run(env, 'DELETE FROM agent_memory WHERE owner=? AND agent_id=?', u.ws, mm[1]);
+      return json({ deleted: true });
+    }
+  }
+  // run an agent: body { input, agent:{name,prompt}, byok:{provider,key} }; answer { output, tokens, gateway, steps, ms }
+  if ((mm = p.match(/^\/api\/agents\/([\w-]{1,40})\/run$/)) && m === 'POST') {
+    const u = await roll(env, await needUser()); await write(u);
+    const plan = planOf(u); if (limited(req, 'run:' + plan, RATE_LIMITS[plan] || 30, 60000)) return fail(429, 'Too many runs per minute for your plan. Slow down or upgrade.');
+    const b = await readBody(200000), input = String(b.input || '').trim().slice(0, 12000); if (!input) return fail(400, 'Input is required');
+    const byok = byokOf(b.byok), id = mm[1];
+    let agent = await one(env, 'SELECT id,owner,name,prompt,tools FROM agents WHERE id=? AND (owner=? OR owner=?)', id, 'system', u.ws);
+    if (agent) agent.tools = parse(agent.tools, []);
+    else {
+      const doc = await one(env, "SELECT data FROM ws_docs WHERE owner=? AND kind='agent' AND id=? AND del=0", u.ws, id), d = doc ? parse(doc.data, {}) : {}, ca = b.agent && typeof b.agent === 'object' ? b.agent : {};
+      const name = String(d.name || ca.name || '').trim().slice(0, 60), prompt = String(d.task || ca.prompt || '').trim().slice(0, 6000);
+      if (!name || !prompt) return fail(404, 'Agent not found');
+      agent = { id, owner: u.ws, name, prompt, tools: [] }; // client-defined agents never get tools
+    }
+    if (agent.rent_until && agent.rent_until < Date.now()) return fail(402, 'This rented agent has expired');
+    const cap = capOf(u);
+    if (!byok && u.used >= cap.runs) return fail(402, `You used all ${cap.runs} managed runs this month. Upgrade your plan, or connect your own API key.`, { limit: cap.runs, used: u.used });
+    const r = await runAgent(env, u, agent, input, byok), cost = +(r.tokens / 1000 * RATE_PER_1K).toFixed(6), at = Date.now(), rid1 = rid();
+    await run(env, 'INSERT INTO runs(id,owner,agent,input,output,steps,tokens,cost,gateway,ms,at) VALUES(?,?,?,?,?,?,?,?,?,?,?)', rid1, u.ws, agent.name, input.slice(0, 4000), r.text.slice(0, 20000), JSON.stringify(r.steps), r.tokens, cost, byok ? byok.provider : 'managed', r.ms, at);
+    await run(env, 'UPDATE users SET used=used+?,tokens=tokens+?,cost=cost+? WHERE email=?', byok ? 0 : 1, r.tokens, cost, u.email);
+    if (id !== 'qv-research') await logHistory(env, { owner: u.ws, type: 'run', title: agent.name, summary: `${r.tokens} tokens by ${u.email}`, detail: { runId: rid1, input: input.slice(0, 300), output: r.text.slice(0, 1500), by: u.email }, at });
+    return json({ id: rid1, output: r.text, steps: r.steps, tokens: r.tokens, ms: r.ms, gateway: byok ? byok.provider : '', used: u.used + (byok ? 0 : 1), limit: cap.runs });
+  }
+  if (p === '/api/runs' && m === 'GET') {
+    const u = await needUser(); return json(await all(env, 'SELECT id,agent,input,output,tokens,gateway,ms,at FROM runs WHERE owner=? ORDER BY at DESC LIMIT ?', u.ws, intParam(q.get('limit'), 50, 1, 200)));
+  }
+  if (p === '/api/history' && m === 'GET') {
+    const u = await needUser(), ty = q.get('type');
+    return json((await all(env, 'SELECT id,type,title,summary,detail,at FROM history WHERE owner=? ' + (HISTORY_TYPES.includes(ty) ? 'AND type=? ' : '') + 'ORDER BY at DESC LIMIT ?', u.ws, ...(HISTORY_TYPES.includes(ty) ? [ty] : []), intParam(q.get('limit'), 100, 1, 300))).map((r) => ({ ...r, detail: parse(r.detail, {}) })));
+  }
+
+  // ----- API keys (shown once, stored as SHA-256) -----
+  if (p === '/api/keys' && m === 'GET') { const u = await needUser(); await admin(u); return json(await all(env, 'SELECT id,hint,created FROM keys WHERE owner=? ORDER BY created DESC', u.ws)); }
+  if (p === '/api/keys' && m === 'POST') {
+    const u = await needUser(); await admin(u); const cap = capOf(u);
+    if (await keysUsed(u.ws) >= cap.keys) return fail(402, `Your plan includes ${cap.keys} API key(s). Upgrade to create more.`);
+    const key = 'qvm_live_' + rid(24), id = rid(6);
+    await run(env, 'INSERT INTO keys(hash,id,owner,hint,created) VALUES(?,?,?,?,?)', await sha(key), id, u.ws, '…' + key.slice(-4), Date.now());
+    await audit(env, u.ws, u.email, 'apikey.create', id);
+    return json({ id, key, hint: '…' + key.slice(-4), note: 'Copy this key now. It is not shown again.' });
+  }
+  if ((mm = p.match(/^\/api\/keys\/([\w-]{3,40})$/)) && m === 'DELETE') {
+    const u = await needUser(); await admin(u); const r = await run(env, 'DELETE FROM keys WHERE id=? AND owner=?', mm[1], u.ws);
+    if (!r.meta || !r.meta.changes) return fail(404, 'Key not found'); await audit(env, u.ws, u.email, 'apikey.revoke', mm[1]); return json({ revoked: true });
+  }
+
+  // ----- webhook endpoint (signed with HMAC-SHA256, header x-qvmpxt-signature) -----
+  if (p === '/api/hooks' && m === 'GET') { const u = await needUser(), h = await one(env, 'SELECT url FROM hooks WHERE owner=?', u.ws); return json({ url: h ? h.url : '', set: !!h }); }
+  if (p === '/api/hooks' && m === 'PUT') {
+    const u = await needUser(); await admin(u); if (planOf(u) === 'free') return fail(402, 'Webhook endpoints are included from the Starter plan.');
+    const b = await readBody(5000), hu = String(b.url || '').trim().slice(0, 500); if (!validHookUrl(hu)) return fail(400, 'Enter a public http(s) URL (no localhost or private addresses)');
+    const cur = await one(env, 'SELECT secret FROM hooks WHERE owner=?', u.ws), secret = cur ? cur.secret : 'whsec_' + rid(24);
+    await run(env, 'INSERT INTO hooks(owner,url,secret) VALUES(?,?,?) ON CONFLICT(owner) DO UPDATE SET url=excluded.url', u.ws, hu, secret);
+    await audit(env, u.ws, u.email, 'webhook.save', hu.slice(0, 80));
+    return json({ url: hu, secret: cur ? undefined : secret, note: cur ? 'Endpoint updated. Your signing secret is unchanged.' : 'Copy the signing secret now. It is not shown again.' });
+  }
+  if (p === '/api/hooks' && m === 'DELETE') { const u = await needUser(); await admin(u); await run(env, 'DELETE FROM hooks WHERE owner=?', u.ws); await audit(env, u.ws, u.email, 'webhook.remove', ''); return json({ deleted: true }); }
+  if (p === '/api/hooks/test' && m === 'POST') {
+    const u = await needUser(); await write(u); if (limited(req, 'hooktest', 10, 60000)) return fail(429, 'Too many tests. Try again in a minute.');
+    const h = await one(env, 'SELECT url,secret FROM hooks WHERE owner=?', u.ws); if (!h) return fail(404, 'Save an endpoint first');
+    const r = await fireHook(h, 'webhook.test', { by: u.email }); return json({ delivered: r.status >= 200 && r.status < 300, status: r.status, error: r.error });
+  }
+
+  // ----- billing: manual proofs (mobile money, BTC), Stripe Checkout, Stripe webhook, sandbox -----
+  const planCycle = (b) => { const plan = String(b.plan || '').toLowerCase(), cycle = b.cycle === 'yearly' || b.cycle === 'y' ? 'yearly' : 'monthly'; if (!PLANS[plan]) throw httpErr(400, 'Choose starter, growth or enterprise'); return { plan, cycle }; };
+  const activate = (email, plan, cycle) => run(env, 'UPDATE users SET plan=?,plan_until=? WHERE email=?', plan, Date.now() + (cycle === 'yearly' ? 366 : 31) * 864e5, email);
+  if (p === '/api/billing/proof' && m === 'POST') {
+    const u = await needUser(); await admin(u); if (limited(req, 'bproof', 10, 60000)) return fail(429, 'Too many submissions. Try again in a minute.');
+    const b = await readBody(5000), { plan, cycle } = planCycle(b), prov = String(b.provider || '').toLowerCase(), tx = String(b.txid || '').trim().toUpperCase().replace(/\s/g, '');
+    if (!['btc', 'lightning', ...MOBILE].includes(prov)) return fail(400, 'Unknown payment method');
+    if (prov === 'btc' || prov === 'lightning' ? !/^[A-Z0-9]{16,128}$/.test(tx) : !/^[A-Z0-9]{6,40}$/.test(tx)) return fail(400, 'Enter the transaction ID or receipt number');
+    const ukey = `${prov}:${tx}`; if (await one(env, 'SELECT 1 x FROM payments WHERE ukey=?', ukey)) return fail(409, 'This transaction ID was already submitted');
+    const pl = PLANS[plan], i = cycle === 'yearly' ? 1 : 0, mobile = MOBILE.includes(prov), amount = mobile ? pl.bdt[i] : prov === 'btc' || prov === 'lightning' ? pl.btc[i] : pl[cycle === 'yearly' ? 'yearly' : 'price'];
+    const rec = { id: rid(), at: Date.now() };
+    await run(env, "INSERT INTO payments(id,ukey,kind,txid,provider,plan,cycle,amount,currency,email,payer,status,at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'pending',?)", rec.id, ukey, 'plan', tx, prov, plan, cycle, amount, mobile ? 'BDT' : 'BTC', 'platform', u.email, rec.at);
+    await audit(env, u.ws, u.email, 'billing.proof', `${plan}/${cycle} via ${prov}`);
+    background(ctx, tg(env, `${brand}: plan payment proof\n${u.email} wants ${plan} (${cycle}) via ${prov}\nTxID: ${tx}\nAmount: ${amount} ${mobile ? 'BDT' : 'BTC'}`));
+    return json({ received: true, id: rec.id, message: 'Payment details received. Your plan turns on as soon as the founder confirms the transaction.' });
+  }
+  if (p === '/api/billing/checkout' && m === 'POST') {
+    const u = await needUser(); await admin(u); if (!env.STRIPE_SECRET_KEY) return fail(503, 'Card checkout is not configured on this server');
+    const b = await readBody(5000), { plan, cycle } = planCycle(b), price = env['STRIPE_PRICE_' + plan.toUpperCase() + (cycle === 'yearly' ? '_YEARLY' : '')];
+    if (!price) return fail(503, `No Stripe price is set for ${plan} (${cycle})`);
+    const base = baseOf(env, url), f = new URLSearchParams({ mode: 'subscription', 'line_items[0][price]': price, 'line_items[0][quantity]': '1', success_url: base + '/#qv_msg=' + encodeURIComponent('Payment received. Your plan updates in a moment.'), cancel_url: base + '/#qv_msg=' + encodeURIComponent('Checkout cancelled'), client_reference_id: u.email, 'metadata[email]': u.email, 'metadata[plan]': plan, 'metadata[cycle]': cycle, 'subscription_data[metadata][email]': u.email });
+    if (u.stripe_customer) f.set('customer', u.stripe_customer); else f.set('customer_email', u.email);
+    let r, j; try { r = await fetch('https://api.stripe.com/v1/checkout/sessions', { method: 'POST', headers: { authorization: 'Bearer ' + env.STRIPE_SECRET_KEY, 'content-type': 'application/x-www-form-urlencoded' }, body: f, signal: AbortSignal.timeout(15000) }); j = await r.json(); } catch { return fail(502, 'Stripe did not respond. Try again.'); }
+    if (!r.ok || !j.url) return fail(502, String((j.error && j.error.message) || 'Stripe rejected the request').replace(env.STRIPE_SECRET_KEY, '***').slice(0, 200));
+    await audit(env, u.ws, u.email, 'billing.checkout', `${plan}/${cycle}`); return json({ url: j.url });
+  }
+  if (p === '/api/stripe/webhook' && m === 'POST') {
+    if (!env.STRIPE_WEBHOOK_SECRET) return fail(503, 'Stripe webhook is not configured');
+    const raw = await req.text(), sg = String(req.headers.get('stripe-signature') || ''), parts = Object.fromEntries(sg.split(',').map((x) => x.split('=')).filter((x) => x.length === 2)), t = +parts.t;
+    const want = t ? hex(await hmacRaw(env.STRIPE_WEBHOOK_SECRET, `${t}.${raw}`)) : '';
+    if (!t || Math.abs(Date.now() / 1000 - t) > 300 || !parts.v1 || !safeEq(parts.v1, want)) return fail(400, 'Bad signature');
+    const ev = parse(raw, null), o = ev && ev.data && ev.data.object; if (!o) return json({ received: true });
+    if (ev.type === 'checkout.session.completed' && o.payment_status !== 'unpaid') {
+      const md = o.metadata || {}, email = String(md.email || o.client_reference_id || '').toLowerCase(), plan = String(md.plan || ''), cycle = md.cycle === 'yearly' ? 'yearly' : 'monthly';
+      if (PLANS[plan] && email && await one(env, 'SELECT 1 x FROM users WHERE email=?', email)) {
+        const ins = await run(env, "INSERT OR IGNORE INTO payments(id,ukey,kind,txid,provider,plan,cycle,amount,currency,email,payer,status,reviewed_by,at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'approved','stripe',?)", rid(), 'stripe:' + o.id, 'plan', o.id, 'stripe', plan, cycle, (o.amount_total || 0) / 100, String(o.currency || 'usd').toUpperCase(), 'platform', email, Date.now());
+        if (ins.meta && ins.meta.changes) { await activate(email, plan, cycle); if (o.customer) await run(env, 'UPDATE users SET stripe_customer=? WHERE email=?', String(o.customer), email); await audit(env, email, 'stripe', 'billing.paid', `${plan}/${cycle}`); background(ctx, tg(env, `${brand}: Stripe payment, ${email} is now on ${plan} (${cycle})`)); }
+      }
+    } else if (ev.type === 'invoice.paid' && o.billing_reason === 'subscription_cycle' && o.customer) {
+      const us = await one(env, 'SELECT email,plan,plan_until FROM users WHERE stripe_customer=?', String(o.customer));
+      if (us && us.plan !== 'free' && await run(env, "INSERT OR IGNORE INTO payments(id,ukey,kind,txid,provider,plan,amount,currency,email,payer,status,reviewed_by,at) VALUES(?,?,?,?,?,?,?,?,?,?,'approved','stripe',?)", rid(), 'stripe:' + o.id, 'plan', o.id, 'stripe', us.plan, (o.amount_paid || 0) / 100, String(o.currency || 'usd').toUpperCase(), 'platform', us.email, Date.now()).then((r) => r.meta && r.meta.changes))
+        await run(env, 'UPDATE users SET plan_until=? WHERE email=?', Math.max(Date.now(), us.plan_until || 0) + 31 * 864e5, us.email);
+    } else if (ev.type === 'customer.subscription.deleted' && o.customer) await run(env, "UPDATE users SET plan='free',plan_until=0 WHERE stripe_customer=?", String(o.customer));
+    return json({ received: true });
+  }
+  // test mode only: set SANDBOX_BILLING=1 to let a signed-in Admin switch plans without paying. Never enable in production.
+  if (p === '/api/billing/sandbox' && m === 'POST') {
+    const u = await needUser(); await admin(u); if (!/^(1|true|yes)$/i.test(String(env.SANDBOX_BILLING || ''))) return fail(403, 'Sandbox billing is off');
+    const { plan, cycle } = planCycle(await readBody(2000)); await activate(u.ws, plan, cycle);
+    await run(env, "INSERT INTO payments(id,ukey,kind,txid,provider,plan,cycle,amount,currency,email,payer,status,reviewed_by,at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'approved','sandbox',?)", rid(), 'sandbox:' + rid(8), 'plan', 'sandbox', 'sandbox', plan, cycle, 0, 'USD', 'platform', u.ws, Date.now());
+    await audit(env, u.ws, u.email, 'billing.sandbox', `${plan}/${cycle}`); return json({ plan, sandbox: true });
+  }
+
+  // ----- marketplace and orders (15% platform commission; the founder confirms payment, then the agent is delivered) -----
+  if (p === '/api/market' && m === 'GET') return json((await all(env, 'SELECT id,by,name,task,tools,buy,rent,sales,created FROM market ORDER BY sales DESC,created DESC LIMIT 100')).map((r) => ({ ...r, tools: parse(r.tools, []) })));
+  if (p === '/api/market' && m === 'POST') {
+    const u = await needUser(); await write(u); needVerified(u); const b = await readBody(10000);
+    const name = String(b.name || '').trim().slice(0, 60), task = String(b.task || '').trim().slice(0, 2000), buy = clamp(+b.buy || 0, 0, 1e5), rent = clamp(+b.rent || 0, 0, 1e5);
+    if (!name || task.length < 10) return fail(400, 'Give your agent a name and a clear task (10+ characters)'); if (!(buy > 0 || rent > 0)) return fail(400, 'Set a buy price, a monthly rent price, or both');
+    if ((await one(env, 'SELECT COUNT(*) n FROM market WHERE email=?', u.email)).n >= 20) return fail(409, 'You can list up to 20 agents');
+    const id = rid(6); await run(env, 'INSERT INTO market(id,by,email,name,task,tools,buy,rent,sales,created) VALUES(?,?,?,?,?,?,?,?,0,?)', id, u.name, u.email, name, task, JSON.stringify((Array.isArray(b.tools) ? b.tools : []).filter((t) => TOOL_NAMES.includes(t))), buy, rent, Date.now());
+    await audit(env, u.ws, u.email, 'market.list', id); return json({ id });
+  }
+  if ((mm = p.match(/^\/api\/market\/([\w-]{3,40})$/)) && m === 'DELETE') {
+    const u = await needUser(), r = await run(env, 'DELETE FROM market WHERE id=? AND email=?', mm[1], u.email);
+    if (!r.meta || !r.meta.changes) return fail(404, 'Listing not found'); await audit(env, u.ws, u.email, 'market.delist', mm[1]); return json({ deleted: true });
+  }
+  if (p === '/api/market/orders' && m === 'GET') {
+    const u = await needUser(); return json(await all(env, 'SELECT id,item,mode,buyer,seller,gross,fee,net,settled,status,provider,at FROM orders WHERE buyer=? OR seller=? ORDER BY at DESC LIMIT 100', u.email, u.email));
+  }
+  if ((mm = p.match(/^\/api\/market\/([\w-]{3,40})\/order$/)) && m === 'POST') {
+    const u = await needUser(); await write(u); needVerified(u); if (limited(req, 'order', 10, 60000)) return fail(429, 'Too many orders. Try again in a minute.');
+    const it = await one(env, 'SELECT * FROM market WHERE id=?', mm[1]); if (!it) return fail(404, 'Listing not found'); if (it.email === u.email) return fail(400, 'You cannot order your own listing');
+    const b = await readBody(5000), mode = b.mode === 'rent' ? 'rent' : 'buy', price = mode === 'rent' ? it.rent : it.buy; if (!(price > 0)) return fail(400, mode === 'rent' ? 'This agent is not offered for rent' : 'This agent is not for sale');
+    const prov = String(b.provider || '').toLowerCase(), tx = String(b.txid || '').trim().toUpperCase().replace(/\s/g, '');
+    if (!['btc', 'lightning', ...MOBILE].includes(prov)) return fail(400, 'Unknown payment method'); if (!/^[A-Z0-9]{6,128}$/.test(tx)) return fail(400, 'Enter the transaction ID or receipt number');
+    if (await one(env, 'SELECT 1 x FROM orders WHERE txid=? AND provider=?', tx, prov)) return fail(409, 'This transaction ID was already submitted');
+    const c = splitCommission(price), id = rid(6);
+    await run(env, "INSERT INTO orders(id,item,mode,buyer,seller,gross,fee,net,settled,at,txid,provider,status) VALUES(?,?,?,?,?,?,?,?,0,?,?,?,'pending')", id, it.id, mode, u.email, it.email, c.gross, c.fee, c.net, Date.now(), tx, prov);
+    await audit(env, u.ws, u.email, 'market.order', `${id} ${mode} ${it.id}`);
+    background(ctx, tg(env, `${brand}: marketplace order ${id}\n${u.email} wants to ${mode} "${it.name}" for ${c.gross} (fee ${c.fee})\nvia ${prov}, TxID ${tx}`));
+    return json({ id, ...c, status: 'pending', message: 'Order received. The agent is added to your workspace as soon as the payment is confirmed.' });
+  }
+  if ((mm = p.match(/^\/api\/market\/orders\/([\w-]{3,40})\/(settle|reject)$/)) && m === 'POST') {
+    const u = await needUser(); needOwner(u); const o = await one(env, 'SELECT * FROM orders WHERE id=?', mm[1]); if (!o) return fail(404, 'Order not found'); if (o.status !== 'pending') return fail(409, 'Already ' + o.status);
+    if (mm[2] === 'reject') { await run(env, "UPDATE orders SET status='rejected' WHERE id=?", o.id); await audit(env, u.ws, u.email, 'market.order.reject', o.id); return json({ id: o.id, status: 'rejected' }); }
+    const it = await one(env, 'SELECT * FROM market WHERE id=?', o.item); if (!it) return fail(410, 'The listing no longer exists');
+    const t = await one(env, 'SELECT owner FROM teams WHERE email=? AND accepted=1', o.buyer), ws = t ? t.owner : o.buyer, rentUntil = o.mode === 'rent' ? Date.now() + 31 * 864e5 : 0;
+    await run(env, 'INSERT INTO ws_docs(owner,kind,id,data,by,at,del) VALUES(?,?,?,?,?,?,0) ON CONFLICT(owner,kind,id) DO UPDATE SET data=excluded.data,by=excluded.by,at=excluded.at,del=0', ws, 'agent', 'mk-' + o.id, JSON.stringify({ name: it.name, task: it.task, rentUntil }), 'marketplace', Date.now());
+    await run(env, "UPDATE orders SET status='approved',settled=1 WHERE id=?", o.id); await run(env, 'UPDATE market SET sales=sales+1 WHERE id=?', it.id);
+    await audit(env, ws, u.email, 'market.order.settle', o.id); await audit(env, u.ws, u.email, 'market.order.settle', o.id);
+    return json({ id: o.id, status: 'approved', delivered: true });
+  }
+
+  return fail(404, 'Not found');
+}
+
+// ---------- public pages: quote link, PDF, sitemap ----------
+const NON_LATIN = /[^\x20-\x7e\u09f3\n]/;
+function sharePage(brand, qt, owner) {
+  const items = parse(qt.items, []), sub = subOf(items), taxAmt = +(qt.total - sub).toFixed(2), cur = qt.currency === 'BDT' ? '\u09f3' : '$', doc = qt.kind === 'invoice' ? 'Invoice' : 'Quotation';
+  const fm = (n) => cur + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const rows = items.map((i) => `<tr><td>${esc(i.name)}</td><td class="n">${+i.qty}</td><td class="n">${fm(i.price)}</td><td class="n">${fm(i.qty * i.price)}</td></tr>`).join('');
+  const css = ':root{--bg:#f6f7fb;--card:#fff;--tx:#0b1020;--mu:#5b6478;--ac:#4f46e5;--ln:#e3e6ef;--ok:#047857;--bad:#b91c1c}@media(prefers-color-scheme:dark){:root{--bg:#070b18;--card:#0f1730;--tx:#f1f5f9;--mu:#94a3b8;--ac:#818cf8;--ln:#24305a;--ok:#34d399;--bad:#f87171}}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.6 system-ui,-apple-system,"Noto Sans Bengali","Hind Siliguri","Nirmala UI",sans-serif;padding:max(16px,env(safe-area-inset-top)) 16px 40px}main{max-width:720px;margin:auto}.card{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:20px;margin:14px 0}h1{margin:0 0 4px;font-size:26px}h2{font-size:17px;margin:0 0 10px}.mu{color:var(--mu);margin:2px 0}table{width:100%;border-collapse:collapse}th,td{padding:8px 6px;border-bottom:1px solid var(--ln);text-align:left}.n{text-align:right;white-space:nowrap}.tot{font-size:22px;font-weight:800;text-align:right;margin-top:12px}.chip{display:inline-block;padding:2px 10px;border-radius:99px;border:1px solid var(--ln);font-size:13px;color:var(--ac);font-weight:700;text-transform:uppercase}button,.btn{display:inline-block;background:var(--ac);color:#fff;border:0;border-radius:10px;padding:10px 16px;font:inherit;font-weight:700;cursor:pointer;text-decoration:none;margin:4px 6px 4px 0}.btn.alt,button.alt{background:transparent;color:var(--ac);border:1px solid var(--ac)}input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--ln);background:var(--bg);color:var(--tx);font:inherit;margin:6px 0}.ok{color:var(--ok)}.bad{color:var(--bad)}code{word-break:break-all;font-size:12px}@media print{body{background:#fff;color:#000}.noprint{display:none}.card{border-color:#ccc}}';
+  const js = "const ID=" + JSON.stringify(qt.id) + ",$=s=>document.querySelector(s),api=(p,o)=>fetch('/api/public/quotes/'+ID+'/'+p,o).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||'Request failed');return j}),msg=(t,bad)=>{const e=$('#msg');e.textContent=t;e.className=bad?'bad':'ok'},el=(t,x,c)=>{const e=document.createElement(t);if(x)e.textContent=x;if(c)e.className=c;return e};"
+    + "const post=(p,b)=>api(p,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)});"
+    + "function proof(box,prov,label){const i=el('input');i.placeholder=label;const b=el('button','I have paid');b.onclick=async()=>{try{const nm=($('#nm')||{}).value||'';const r=await post('proof',{provider:prov,txid:i.value,name:nm});msg(r.message)}catch(e){msg(e.message,1)}};box.append(i,b)}"
+    + "async function pay(){const m=await api('methods');if(m.status==='paid'){$('#pay').replaceChildren(el('p','This link is paid. Thank you!','ok'));return}const box=$('#pay');"
+    + "if(m.stripe){const d=el('div');d.append(el('h3','Card (Stripe)'));const a=el('a','Pay with card','btn');a.href=m.stripe;a.target='_blank';a.rel='noopener';d.append(a);proof(d,'stripe','Stripe receipt or payment ID');box.append(d)}"
+    + "for(const k of Object.keys(m.mobile||{})){const d=el('div');d.append(el('h3',k.charAt(0).toUpperCase()+k.slice(1)));d.append(el('p','Send '+m.currency+' '+m.total+' to '+m.mobile[k]+', then paste the transaction ID.','mu'));proof(d,k,'Transaction ID');box.append(d)}"
+    + "if(m.lightning){const d=el('div');d.append(el('h3','Bitcoin Lightning'));try{const l=await api('lightning');d.append(el('p',l.sats+' sats','mu'));const c=el('code',l.invoice||l.address);d.append(c);const a=el('a','Open in wallet','btn alt');a.href=l.qr;d.append(a)}catch(e){d.append(el('p',e.message,'bad'))}proof(d,'lightning','Payment hash or preimage');box.append(d)}"
+    + "if(!box.children.length)box.append(el('p','The seller has not added payment methods yet. Please contact them directly.','mu'))}"
+    + "$('#acc')&&($('#acc').onclick=async()=>{try{const r=await post('accept',{name:$('#nm').value});$('#st').textContent=r.status;msg('Accepted. Thank you!');$('#acc').hidden=true}catch(e){msg(e.message,1)}});"
+    + "pay().catch(e=>msg(e.message,1));if(location.search.indexOf('print=1')>-1)setTimeout(()=>print(),400);";
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><title>${esc(qt.title)} \u00b7 ${esc(brand)}</title><link rel="icon" href="/icon.svg"><style>${css}</style></head><body><main><div class="card"><span class="chip" id="st">${esc(qt.status)}</span><h1>${esc(doc)}: ${esc(qt.title)}</h1><p class="mu">From ${esc(owner.company || owner.name)}${qt.client ? ' \u00b7 For ' + esc(qt.client) : ''}</p><p class="mu">${new Date(qt.created).toISOString().slice(0, 10)} \u00b7 Ref ${esc(qt.id)}</p></div>`
+    + `<div class="card"><table><tr><th>Item</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Amount</th></tr>${rows}</table>${qt.tax ? `<p class="mu n">Subtotal ${fm(sub)}<br>Tax ${+qt.tax}% ${fm(taxAmt)}</p>` : ''}<div class="tot">${fm(qt.total)}</div>${qt.notes ? `<p class="mu" style="white-space:pre-wrap">${esc(qt.notes)}</p>` : ''}</div>`
+    + `<div class="card noprint"><h2>Your name</h2><input id="nm" maxlength="80" placeholder="Full name" autocomplete="name">${qt.status === 'sent' ? '<button id="acc">Accept this ' + esc(doc.toLowerCase()) + '</button>' : ''}<a class="btn alt" href="/s/${esc(qt.id)}/pdf">Download PDF</a><button class="alt" onclick="print()">Print</button><p id="msg" class="mu" role="status"></p></div><div class="card noprint"><h2>Pay</h2><div id="pay"><p class="mu">Loading payment options\u2026</p></div></div><p class="mu" style="text-align:center">Powered by ${esc(brand)}</p></main><script>${js}</script></body></html>`;
+}
+const notFoundPage = (brand) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not found \u00b7 ${esc(brand)}</title><body style="font:16px system-ui;text-align:center;padding:60px"><h1>This link is not available</h1><p>It may have been removed by the sender.</p></body>`;
+const html = (body, status = 200) => new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer' } });
+
+let TAIL_READY = false;
+async function ensureTail(env) {
+  if (TAIL_READY) return; // per-isolate flag
+  const cols = ((await env.DB.prepare("SELECT name FROM pragma_table_info('orders')").all()).results || []).map((r) => r.name);
+  for (const [c, d] of [['txid', "TEXT DEFAULT ''"], ['provider', "TEXT DEFAULT ''"], ['status', "TEXT DEFAULT 'pending'"]]) if (!cols.includes(c)) await env.DB.prepare(`ALTER TABLE orders ADD COLUMN ${c} ${d}`).run();
+  TAIL_READY = true;
+}
+
+async function pages(req, env, ctx, url) {
+  const p = url.pathname, brand = brandOf(env), base = baseOf(env, url);
+  let mm;
+  if ((mm = p.match(/^\/s\/([\w-]{3,40})(\/pdf)?$/)) && (req.method === 'GET' || req.method === 'HEAD')) {
+    const qt = await one(env, 'SELECT * FROM quotes WHERE id=?', mm[1]); if (!qt) return html(notFoundPage(brand), 404);
+    const owner = await one(env, 'SELECT * FROM users WHERE email=?', qt.owner) || { name: '', company: '' };
+    if (!mm[2]) { background(ctx, run(env, 'UPDATE quotes SET views=views+1 WHERE id=?', qt.id)); return html(sharePage(brand, qt, owner)); }
+    // PDF text is Helvetica only; Bengali or other scripts would turn into "?", so those go to the print page (the browser shapes the text correctly)
+    const texts = [qt.title, qt.client, qt.notes, owner.company, owner.name, ...parse(qt.items, []).map((i) => i.name)].map((x) => String(x || ''));
+    if (texts.some((s) => NON_LATIN.test(s))) return new Response(null, { status: 302, headers: { location: `/s/${qt.id}?print=1`, 'cache-control': 'no-store' } });
+    return new Response(quotePdf(brand, qt, owner), { headers: { 'content-type': 'application/pdf', 'content-disposition': `inline; filename="${qt.kind}-${qt.id}.pdf"`, 'cache-control': 'no-store' } });
+  }
+  if (p === '/sitemap.xml') return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${esc(base)}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>`, { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+  if (p === '/robots.txt') return new Response(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /s/\nSitemap: ${base}/sitemap.xml\n`, { headers: { 'content-type': 'text/plain; charset=utf-8' } });
+  if (p === '/sw.js') return new Response(SW_SOURCE(brand), { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache', 'service-worker-allowed': '/' } });
+  if (p === '/manifest.webmanifest') return new Response(MANIFEST(brand), { headers: { 'content-type': 'application/manifest+json; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+  if (p === '/icon.svg') return new Response(ICON_SVG, { headers: { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=86400' } });
+  return null;
+}
+
+function cors(env, req, res) {
+  const o = req.headers.get('origin'), allow = String(env.ALLOWED_ORIGIN || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (!o || !allow.includes(o)) return res;
+  const h = new Headers(res.headers); h.set('access-control-allow-origin', o); h.set('vary', 'origin'); h.set('access-control-allow-headers', 'authorization,content-type'); h.set('access-control-allow-methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  return new Response(res.body, { status: res.status, headers: h });
+}
+
+export default {
+  async fetch(req, env, ctx) {
+    const url = new URL(req.url), p = url.pathname;
+    try {
+      if (req.method === 'OPTIONS' && p.startsWith('/api/')) return cors(env, req, new Response(null, { status: 204 }));
+      const isApi = p.startsWith('/api/');
+      if (isApi || p.startsWith('/s/')) { await ensureSchema(env); await ensureTail(env); }
+      if (isApi) return cors(env, req, await api(req, env, ctx, url));
+      const pg = await pages(req, env, ctx, url); if (pg) return pg;
+      if (!env.ASSETS) return html('<h1>Static assets are not bound</h1>', 500);
+      let r = await env.ASSETS.fetch(req);
+      if (r.status === 404 && (req.headers.get('accept') || '').includes('text/html')) { r = await env.ASSETS.fetch(new Request(new URL('/', url), req)); if (!r.ok) r = await env.ASSETS.fetch(new Request(new URL('/qvmpxt.html', url), req)); }
+      const h = new Headers(r.headers); h.set('x-content-type-options', 'nosniff'); h.set('referrer-policy', 'strict-origin-when-cross-origin'); h.set('x-frame-options', 'SAMEORIGIN');
+      return new Response(r.body, { status: r.status, headers: h });
+    } catch (e) {
+      if (e && e.status) return cors(env, req, fail(e.status, e.message, e.extra));
+      background(ctx, sentry(env, e, { path: p, method: req.method }));
+      return cors(env, req, fail(500, 'Something went wrong on our side. Please try again.'));
+    }
+  },
+};
