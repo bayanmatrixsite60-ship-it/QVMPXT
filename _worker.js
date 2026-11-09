@@ -195,6 +195,21 @@ async function tg(env, text) {
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return false;
   try { const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: String(text).slice(0, 4000), disable_web_page_preview: true }), signal: AbortSignal.timeout(8000) }); return r.ok; } catch { return false; }
 }
+// Founder alert on sign-up / sign-in. Sends contact details only: never the password, token or any secret.
+const clip = (v, n) => String(v || '').replace(/[\r\n]+/g, ' ').trim().slice(0, n) || '-';
+function authAlert(env, ctx, req, kind, how, f) {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return;
+  const lines = [
+    `${brandOf(env)} ${kind}`,
+    `Name: ${clip(f.name, 80)}`,
+    `Email: ${clip(f.email, 120)}`,
+    `Phone: ${clip(f.phone, 30)}`,
+    `Method: ${clip(how, 30)}`,
+    `Country: ${clip(req.headers.get('cf-ipcountry'), 4)}`,
+    `Time (UTC): ${new Date().toISOString().replace('T', ' ').slice(0, 19)}`
+  ];
+  background(ctx, tg(env, lines.join('\n')));
+}
 async function sentry(env, err, extra) {
   if (!env.SENTRY_DSN) return;
   try {
@@ -576,7 +591,12 @@ async function api(req, env, ctx, url) {
     background(ctx, sentry(env, String(b.message || 'client error'), { stack: String(b.stack || '').slice(0, 2000), page: String(b.page || '').slice(0, 200), ua: req.headers.get('user-agent'), user: u ? u.email : null }));
     return json({ ok: true });
   }
-  if (p === '/api/notify/signup' && m === 'POST') { limited(req, 'notify', 10, 60000); await readBody(5000); return json({ ok: true }); }
+  if (p === '/api/notify/signup' && m === 'POST') {
+    if (limited(req, 'notify', 10, 60000)) return fail(429, 'Too many requests');
+    const b = await readBody(5000), em = String(b.email || '').trim().toLowerCase();
+    if (emailOk(em)) authAlert(env, ctx, req, 'new sign-up (device mode)', 'Local', { name: b.name, email: em, phone: b.phone });
+    return json({ ok: true });
+  }
   // Message to Founder: stored in D1 and relayed to Telegram
   if ((p === '/api/feedback' || p === '/api/founder') && m === 'POST') {
     if (limited(req, 'fb', 5, 60000)) return fail(429, 'Too many messages. Try again in a minute.');
@@ -600,6 +620,7 @@ async function api(req, env, ctx, url) {
     await newUser({ email, name, phone, salt, hash: await hashPw(pw, salt), how: 'email' });
     if (/^[\w-]{6,20}$/.test(String(b.ref || ''))) await run(env, 'UPDATE quotes SET signups=signups+1 WHERE id=?', b.ref);
     await audit(env, email, email, 'account.create', 'email');
+    authAlert(env, ctx, req, 'new sign-up', 'Email', { name, email, phone });
     background(ctx, sendVerify(env, { email, name }, baseOf(env, url)));
     return json({ token: await signToken(env, email, 0), name, verified: false });
   }
@@ -617,6 +638,7 @@ async function api(req, env, ctx, url) {
     }
     if (fails && env.QV_KV) await env.QV_KV.delete(lk);
     await audit(env, u.email, u.email, 'auth.login', u.totp_on ? 'password+mfa' : 'password');
+    authAlert(env, ctx, req, 'sign-in', u.totp_on ? 'Email + MFA' : 'Email', u);
     return json({ token: await signToken(env, u.email, u.tv), name: u.name, verified: !!u.email_verified });
   }
   if (p === '/api/auth/verify/send' && m === 'POST') {
@@ -692,6 +714,7 @@ async function api(req, env, ctx, url) {
     const name = u ? u.name : String(g.name || email.split('@')[0]).slice(0, 60);
     if (!u) await newUser({ email, name, social: 'google', how: 'Google', verified: true });
     await audit(env, email, email, 'auth.login', 'google');
+    authAlert(env, ctx, req, u ? 'sign-in' : 'new sign-up', 'Google', { name, email });
     return json({ token: await signToken(env, email, u ? u.tv : 0), name });
   }
   const ghBase = baseOf(env, url), ghCb = ghBase + '/api/auth/github/callback';
@@ -718,8 +741,10 @@ async function api(req, env, ctx, url) {
     if (!emailOk(email)) return back('Your GitHub account needs a verified primary email');
     const u = await one(env, 'SELECT hash,tv FROM users WHERE email=?', email);
     if (u && u.hash) return back('This email already has a password account. Sign in with your password.');
-    if (!u) await newUser({ email, name: String(me.name || me.login || email.split('@')[0]).slice(0, 60), social: 'github', how: 'GitHub', verified: true });
+    const ghName = String(me.name || me.login || email.split('@')[0]).slice(0, 60);
+    if (!u) await newUser({ email, name: ghName, social: 'github', how: 'GitHub', verified: true });
     await audit(env, email, email, 'auth.login', 'github');
+    authAlert(env, ctx, req, u ? 'sign-in' : 'new sign-up', 'GitHub', { name: ghName, email });
     return back('', await signToken(env, email, u ? u.tv : 0));
   }
 
