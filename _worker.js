@@ -9,7 +9,9 @@
 //   JWT_SECRET (required, 16+ chars), OWNER_EMAIL, PUBLIC_URL, WEBAUTHN_RP_ID, MAIL_WEBHOOK_URL, MAIL_WEBHOOK_SECRET,
 //   ANTHROPIC_API_KEY (+ optional MODEL), STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_<PLAN>[_YEARLY],
 //   GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET, BKASH_NUMBER, NAGAD_NUMBER, ROCKET_NUMBER,
-//   BTC_LIGHTNING_ADDRESS, TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID, SENTRY_DSN, ALLOWED_ORIGIN, BRAND, GLOSSARY_EXTRA, I18N_DAILY_MAX
+//   BTC_LIGHTNING_ADDRESS, TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID, SENTRY_DSN, ALLOWED_ORIGIN, BRAND, GLOSSARY_EXTRA, I18N_DAILY_MAX,
+//   TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY (bot protection for AI runs), DAILY_AI_BUDGET_USD (platform-wide daily AI spend cap, default 50),
+//   LEMON_API_KEY + LEMON_STORE_ID + LEMON_WEBHOOK_SECRET + LEMON_VARIANT_<PLAN>[_YEARLY] (Lemon Squeezy checkout, optional)
 //
 // Team workspace: an accepted team member works inside the owner's workspace. Agents, quotes, runs, OCR logs and history are
 // stored under the owner's id (table ws_docs for synced client data), so every member sees the same data pool.
@@ -17,7 +19,7 @@
 // Audit: table audit_log is append-only (SQLite triggers block UPDATE/DELETE) and hash-chained per workspace.
 // Tables are created and migrated automatically on first request.
 
-const DEFAULT_BRAND = 'Qvmpxt';
+const DEFAULT_BRAND = 'QVMPXT';
 const DEFAULT_MAIL_URL = 'https://script.google.com/macros/s/AKfycbzxOGdviKa2lx37zMt05wcdpbdQDOF8nABuwhotl9hjO1ehUyitlPZpdBw_uVeYrkOS/exec';
 const PLANS = {
   starter: { price: 9, yearly: 89, runs: 300, keys: 3, seats: 5, bdt: [990, 9900], btc: [0.00009, 0.0009] },
@@ -26,6 +28,9 @@ const PLANS = {
 };
 const FREE = { runs: 50, keys: 1, seats: 2 };
 const RATE_LIMITS = { free: 30, starter: 60, growth: 300, enterprise: 1200 };
+// managed AI runs per UTC day and per workspace (runs and estimated USD cost), on top of the monthly quota and the per-minute rate limit
+const DAILY = { free: { runs: 15, usd: 0.1 }, starter: { runs: 80, usd: 1 }, growth: { runs: 400, usd: 6 }, enterprise: { runs: 2500, usd: 40 } };
+const REF_BONUS = 25, REF_NEW = 10, BONUS_CAP = 500; // bonus managed runs: referrer, new user, lifetime cap
 const COMMISSION_PCT = 15, MOBILE = ['bkash', 'nagad', 'rocket'], CURRENCIES = ['USD', 'BDT'], ROLES = ['Admin', 'Editor', 'Viewer'];
 const TOKEN_TTL = 864e5, PBKDF2_ITER = 100000, RATE_PER_1K = 0.002, HISTORY_PER_USER = 300;
 const HISTORY_TYPES = ['run', 'quote', 'invoice', 'audit', 'ocr', 'voice', 'note'], CLIENT_TYPES = ['voice', 'note'];
@@ -51,7 +56,7 @@ const phoneOk = (s) => /^[+\d][\d\s()-]{6,19}$/.test(s || '');
 const lnAddrOk = (s) => /^[\w.+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(s || '');
 const langOk = (s) => /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$/.test(s || '');
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
-const brandOf = (env) => env.BRAND || DEFAULT_BRAND;
+const brandOf = (env) => String(env.BRAND || DEFAULT_BRAND).toUpperCase();
 const baseOf = (env, url) => (env.PUBLIC_URL || url.origin).replace(/\/+$/, '');
 const intParam = (v, def, min, max) => { const n = parseInt(v, 10); return Number.isFinite(n) ? clamp(n, min, max) : def; };
 const parse = (s, d) => { try { return JSON.parse(s) ?? d; } catch { return d; } };
@@ -101,6 +106,11 @@ const MIGRATIONS = [
   ['email_verified', `ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0`],
   ['tv', `ALTER TABLE users ADD COLUMN tv INTEGER DEFAULT 0`],
   ['recovery', `ALTER TABLE users ADD COLUMN recovery TEXT DEFAULT '[]'`],
+  ['bonus_runs', `ALTER TABLE users ADD COLUMN bonus_runs INTEGER DEFAULT 0`],
+  ['ref_by', `ALTER TABLE users ADD COLUMN ref_by TEXT DEFAULT ''`],
+  ['ref_paid', `ALTER TABLE users ADD COLUMN ref_paid INTEGER DEFAULT 0`],
+  ['ref_code', `ALTER TABLE users ADD COLUMN ref_code TEXT DEFAULT ''`],
+  ['logo', `ALTER TABLE users ADD COLUMN logo TEXT DEFAULT ''`],
 ];
 const SYSTEM_AGENTS = [
   ['sys-quote', 'Quotation Drafter', 'You turn a plain-language job description into a professional itemized quotation. Always call create_quotation with sensible line items and prices, then reply with the link and a one-line summary. If prices are missing, ask for them instead of inventing numbers.', ['create_quotation', 'save_memory', 'recall_memory']],
@@ -182,8 +192,8 @@ async function newRecoveryCodes() {
 
 // ---------- rate limiting (per isolate; add Cloudflare rate-limit rules for a global limit) ----------
 const HITS = new Map();
-function limited(req, bucket, max, windowMs) {
-  const ip = req.headers.get('cf-connecting-ip') || 'local', k = bucket + ':' + ip, now = Date.now(), h = HITS.get(k);
+function limited(req, bucket, max, windowMs, who) {
+  const ip = req.headers.get('cf-connecting-ip') || 'local', k = bucket + ':' + (who || ip), now = Date.now(), h = HITS.get(k);
   if (HITS.size > 5000) HITS.clear();
   if (!h || now - h.t > windowMs) { HITS.set(k, { t: now, n: 1 }); return false; }
   return ++h.n > max;
@@ -195,21 +205,62 @@ async function tg(env, text) {
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return false;
   try { const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: String(text).slice(0, 4000), disable_web_page_preview: true }), signal: AbortSignal.timeout(8000) }); return r.ok; } catch { return false; }
 }
-// Founder alert on sign-up / sign-in. Sends contact details only: never the password, token or any secret.
+// Founder alerts. Every line starts with an icon. Sign-up / sign-in alerts carry contact details and request telemetry
+// (device, approximate location, IP) and never the password, token or any secret.
 const clip = (v, n) => String(v || '').replace(/[\r\n]+/g, ' ').trim().slice(0, n) || '-';
+const SEP = '➖➖➖➖➖➖➖➖➖➖';
+const flagOf = (cc) => (/^[A-Za-z]{2}$/.test(cc || '') && !/^(XX|T1)$/i.test(cc) ? String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)) : '🌍');
+const countryName = (cc) => { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(String(cc).toUpperCase()) || cc; } catch { return cc; } };
+function deviceOf(ua) {
+  ua = String(ua || '');
+  let m;
+  const os = /Windows NT 10/.test(ua) ? 'Windows 10/11' : /Windows/.test(ua) ? 'Windows' : (m = /Android ([\d.]+)/.exec(ua)) ? 'Android ' + m[1] : (m = /(?:iPhone|iPad|iPod).*? OS ([\d_]+)/.exec(ua)) ? 'iOS ' + m[1].replace(/_/g, '.') : /Mac OS X/.test(ua) ? 'macOS' : /CrOS/.test(ua) ? 'ChromeOS' : /Linux/.test(ua) ? 'Linux' : 'Unknown OS';
+  const ver = (re) => { const x = re.exec(ua); return x ? ' ' + x[1].split('.')[0] : ''; };
+  const browser = /Edg(?:e|A|iOS)?\//.test(ua) ? 'Edge' + ver(/Edg(?:e|A|iOS)?\/([\d.]+)/) : /OPR\/|Opera/.test(ua) ? 'Opera' + ver(/OPR\/([\d.]+)/) : /SamsungBrowser/.test(ua) ? 'Samsung Internet' + ver(/SamsungBrowser\/([\d.]+)/) : /Firefox\/|FxiOS/.test(ua) ? 'Firefox' + ver(/(?:Firefox|FxiOS)\/([\d.]+)/) : /CriOS|Chrome\//.test(ua) ? 'Chrome' + ver(/(?:Chrome|CriOS)\/([\d.]+)/) : /Safari\//.test(ua) ? 'Safari' + ver(/Version\/([\d.]+)/) : ua ? 'Other browser' : 'Unknown';
+  const type = /iPad|Tablet|SM-T/.test(ua) ? 'Tablet' : /Mobi|iPhone|iPod|Android/.test(ua) ? 'Mobile' : ua ? 'Desktop' : 'Unknown';
+  const model = (m = /Android [\d.]+; ([^;)]+?)(?: Build|\))/.exec(ua)) ? m[1].trim() : /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : '';
+  return { os, browser, type, model };
+}
+function geoOf(req) {
+  const cf = req.cf || {}, h = (k) => req.headers.get(k) || '', cc = String(cf.country || h('cf-ipcountry') || '').toUpperCase();
+  return { ip: h('cf-connecting-ip') || h('x-forwarded-for').split(',')[0].trim(), cc, country: cc && !/^(XX|T1)$/.test(cc) ? countryName(cc) : '', city: cf.city || h('cf-ipcity'), region: cf.region || h('cf-region'), tz: cf.timezone, net: [cf.asn ? 'AS' + cf.asn : '', cf.asOrganization || ''].filter(Boolean).join(' '), lat: cf.latitude || h('cf-iplatitude'), lon: cf.longitude || h('cf-iplongitude') };
+}
+// rows: [icon, label, value]. Builds a card in which every line begins with an icon.
+const card = (brand, head, rows) => [head, SEP, ...rows.filter(Boolean).map(([i, l, v]) => `${i} ${l}: ${clip(v, 300)}`), SEP, `🛡️ Powered by ${brand}`].join('\n');
+const telemetryRows = (req) => {
+  const g = geoOf(req), d = deviceOf(req.headers.get('user-agent')), where = [g.city, g.region].filter(Boolean).join(', ');
+  return [
+    ['🌍', 'Country', g.country ? `${flagOf(g.cc)} ${g.country} (${g.cc})` : '-'],
+    ['🏙️', 'City', where || '-'],
+    ['🕒', 'Timezone', g.tz || '-'],
+    g.lat && g.lon ? ['🧭', 'Coordinates', `${g.lat}, ${g.lon}`] : null,
+    g.lat && g.lon ? ['🗺️', 'Map', `https://www.google.com/maps?q=${encodeURIComponent(g.lat + ',' + g.lon)}`] : null,
+    ['🌐', 'IP address', g.ip || '-'],
+    ['📡', 'Network', g.net || '-'],
+    ['💻', 'Device', [d.type, d.os, d.model].filter(Boolean).join(' · ')],
+    ['🧩', 'Browser', d.browser],
+  ];
+};
+// a free-text body, one icon per line
+const bodyRows = (text, icon = '💬') => String(text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 25).map((l) => [icon, 'Text', l.slice(0, 300)]).map(([i, , l]) => `${i} ${l}`);
 function authAlert(env, ctx, req, kind, how, f) {
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return;
-  const lines = [
-    `${brandOf(env)} ${kind}`,
-    `Name: ${clip(f.name, 80)}`,
-    `Email: ${clip(f.email, 120)}`,
-    `Phone: ${clip(f.phone, 30)}`,
-    `Method: ${clip(how, 30)}`,
-    `Country: ${clip(req.headers.get('cf-ipcountry'), 4)}`,
-    `Time (UTC): ${new Date().toISOString().replace('T', ' ').slice(0, 19)}`
-  ];
-  background(ctx, tg(env, lines.join('\n')));
+  const brand = brandOf(env), isNew = /sign-up/i.test(kind), head = `${isNew ? '🎉' : '🔐'} ${brand} · ${String(kind).toUpperCase()}`;
+  background(ctx, tg(env, card(brand, head, [
+    ['👤', 'Name', f.name],
+    ['📧', 'Email', f.email],
+    ['📱', 'Phone', f.phone],
+    ['🔑', 'Method', how],
+    ...telemetryRows(req),
+    ['⏰', 'Time (UTC)', new Date().toISOString().replace('T', ' ').slice(0, 19)],
+  ])));
 }
+// generic founder card for events (payments, quotes, messages)
+const eventCard = (env, ctx, icon, title, rows, req) => {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return;
+  const brand = brandOf(env);
+  background(ctx, tg(env, card(brand, `${icon} ${brand} · ${title}`, [...rows, ...(req ? [['🌐', 'IP address', geoOf(req).ip || '-'], ['🌍', 'Country', geoOf(req).country || '-']] : []), ['⏰', 'Time (UTC)', new Date().toISOString().replace('T', ' ').slice(0, 19)]])));
+};
 async function sentry(env, err, extra) {
   if (!env.SENTRY_DSN) return;
   try {
@@ -220,10 +271,15 @@ async function sentry(env, err, extra) {
 async function sendMail(env, to, subject, html) {
   const url = env.MAIL_WEBHOOK_URL || DEFAULT_MAIL_URL, secret = env.MAIL_WEBHOOK_SECRET;
   if (!url || !secret || !emailOk(to)) return false;
-  try {
-    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ secret, to, subject, html }), redirect: 'follow', signal: AbortSignal.timeout(15000) });
-    return r.ok && (await r.text()).trim() === 'ok';
-  } catch { return false; }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ secret, to, subject, html }), redirect: 'follow', signal: AbortSignal.timeout(15000) });
+      const t = (await r.text()).trim();
+      if (r.ok && (t === 'ok' || /^\{\s*"ok"\s*:\s*true/.test(t))) return true;
+    } catch { /* retry once */ }
+    if (attempt === 0) await new Promise((res) => setTimeout(res, 600));
+  }
+  return false;
 }
 const mailHtml = (brand, heading, text, btnUrl, btnText) => `<div style="font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:auto;padding:24px;background:#0a1022;color:#f1f5f9;border-radius:16px"><h2 style="margin:0 0 12px;color:#00f0ff">${esc(brand)}</h2><h3 style="margin:0 0 10px">${esc(heading)}</h3><p style="color:#cbd5e1;line-height:1.5">${esc(text)}</p>${btnUrl ? `<p><a href="${esc(btnUrl)}" style="display:inline-block;background:#6366f1;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:700">${esc(btnText)}</a></p><p style="color:#94a3b8;font-size:12px;word-break:break-all">${esc(btnUrl)}</p>` : ''}<p style="color:#64748b;font-size:12px">If you did not expect this email you can safely ignore it.</p></div>`;
 async function sendVerify(env, u, base) {
@@ -270,11 +326,11 @@ const planOf = (u) => { const x = u.eff || u; return x.plan !== 'free' && x.plan
 const capOf = (u) => PLANS[planOf(u)] || FREE;
 async function roll(env, u) { const p = new Date().toISOString().slice(0, 7); if (u.period !== p) { u.period = p; u.used = 0; await run(env, 'UPDATE users SET period=?,used=0 WHERE email=?', p, u.email); } return u; }
 const payInfo = (u) => parse(u.pay_json, {});
-const profileOf = (u) => ({ email: u.email, name: u.name, phone: u.phone || '', company: u.company || '', addr: u.addr || '', cur: u.cur || 'USD', pay: payInfo(u), mfa: !!u.totp_on, social: u.social || '', verified: !!u.email_verified });
+const profileOf = (u) => ({ logo: u.logo || '', email: u.email, name: u.name, phone: u.phone || '', company: u.company || '', addr: u.addr || '', cur: u.cur || 'USD', pay: payInfo(u), mfa: !!u.totp_on, social: u.social || '', verified: !!u.email_verified });
 const cleanItems = (a) => (Array.isArray(a) ? a : []).slice(0, 50).map((i) => ({ name: String((i && i.name) || 'Item').slice(0, 100), qty: clamp(+(i && i.qty) || 1, 0.01, 1e6), price: clamp(+(i && i.price) || 0, 0, 1e9) })).filter((i) => i.name.trim());
 const subOf = (items) => +items.reduce((a, i) => a + i.qty * i.price, 0).toFixed(2);
 const splitCommission = (gross) => { const c = Math.round(gross * 100), f = Math.round(c * COMMISSION_PCT / 100); return { gross: c / 100, fee: f / 100, net: (c - f) / 100 }; };
-const quoteView = (q) => ({ id: q.id, kind: q.kind, title: q.title, client: q.client, clientEmail: q.client_email, currency: q.currency, items: parse(q.items, []), tax: q.tax, total: q.total, sats: q.sats, notes: q.notes, status: q.status, views: q.views, signups: q.signups, acceptedBy: q.accepted_by, acceptedAt: q.accepted_at, paidAt: q.paid_at, created: q.created, url: `/s/${q.id}`, pdf: `/s/${q.id}/pdf` });
+const quoteView = (q) => ({ dueAt: q.due_at || 0, reminders: q.remind_n || 0, id: q.id, kind: q.kind, title: q.title, client: q.client, clientEmail: q.client_email, currency: q.currency, items: parse(q.items, []), tax: q.tax, total: q.total, sats: q.sats, notes: q.notes, status: q.status, views: q.views, signups: q.signups, acceptedBy: q.accepted_by, acceptedAt: q.accepted_at, paidAt: q.paid_at, created: q.created, url: `/s/${q.id}`, pdf: `/s/${q.id}/pdf` });
 
 async function logHistory(env, e) {
   const id = e.id || rid(), at = e.at || Date.now();
@@ -289,7 +345,7 @@ async function createQuote(env, u, b, kind = 'quote') {
   if (!(total > 0)) throw httpErr(400, 'Total must be above zero');
   const sats = clamp(Math.round(+b.sats || 0), 0, 1e9), id = rid(6), now = Date.now(), title = String(b.title || (kind === 'invoice' ? 'Invoice' : 'Quotation')).slice(0, 80);
   const client = String(b.client || '').slice(0, 80), ce = emailOk(String(b.clientEmail || '').trim()) ? String(b.clientEmail).trim() : '';
-  await run(env, 'INSERT INTO quotes(id,owner,kind,title,client,client_email,currency,items,tax,total,sats,notes,status,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)', id, u.ws, kind, title, client, ce, cur, JSON.stringify(items), tax, total, sats, String(b.notes || '').slice(0, 1000), 'sent', now);
+  await run(env, 'INSERT INTO quotes(id,owner,kind,title,client,client_email,currency,items,tax,total,sats,notes,status,created,due_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', id, u.ws, kind, title, client, ce, cur, JSON.stringify(items), tax, total, sats, String(b.notes || '').slice(0, 1000), 'sent', now, now + clamp(Math.round(+b.dueDays || 14), 1, 365) * 864e5);
   await logHistory(env, { owner: u.ws, type: kind, title, summary: `${items.length} item(s), total ${money(total, cur)}${client ? ' for ' + client : ''} by ${u.email}`, detail: { quoteId: id, url: `/s/${id}`, pdf: `/s/${id}/pdf`, client, total, currency: cur, by: u.email }, at: now });
   await audit(env, u.ws, u.email, kind + '.create', id);
   return { id, url: `/s/${id}`, pdf: `/s/${id}/pdf`, total, currency: cur, kind };
@@ -402,6 +458,80 @@ async function lnInvoice(addr, sats) {
   } catch { return null; }
 }
 
+
+// ---------- Turnstile (bot protection for AI runs) ----------
+async function turnstileOk(env, req, token) {
+  if (!env.TURNSTILE_SECRET_KEY) return true; // not configured: /api/health and the readiness check report it
+  token = String(token || ''); if (token.length < 10 || token.length > 2100) return false;
+  try {
+    const f = new URLSearchParams({ secret: env.TURNSTILE_SECRET_KEY, response: token }), ip = req.headers.get('cf-connecting-ip'); if (ip) f.set('remoteip', ip);
+    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: f, signal: AbortSignal.timeout(8000) });
+    return !!(await r.json()).success;
+  } catch { return false; }
+}
+
+// ---------- referrals: bonus managed runs for the referrer and the new user once the new email is verified ----------
+async function applyRef(env, email, ref) {
+  ref = String(ref || ''); if (!/^[\w-]{6,20}$/.test(ref)) return;
+  const q = await one(env, 'SELECT owner FROM quotes WHERE id=?', ref);
+  if (q) await run(env, 'UPDATE quotes SET signups=signups+1 WHERE id=?', ref);
+  const owner = q ? q.owner : ((await one(env, "SELECT email FROM users WHERE ref_code=? AND ref_code!=''", ref)) || {}).email;
+  if (owner && owner !== email) await run(env, "UPDATE users SET ref_by=? WHERE email=? AND ref_by=''", owner, email);
+}
+async function grantReferral(env, ctx, email) {
+  try {
+    const u = await one(env, 'SELECT email,name,ref_by,ref_paid,email_verified FROM users WHERE email=?', email);
+    if (!u || !u.ref_by || u.ref_paid || !u.email_verified) return;
+    const r = await run(env, 'UPDATE users SET ref_paid=1,bonus_runs=MIN(bonus_runs+?,?) WHERE email=? AND ref_paid=0', REF_NEW, BONUS_CAP, email);
+    if (!r.meta || !r.meta.changes) return;
+    await run(env, 'UPDATE users SET bonus_runs=MIN(bonus_runs+?,?) WHERE email=?', REF_BONUS, BONUS_CAP, u.ref_by);
+    await audit(env, u.ref_by, 'system', 'referral.reward', `${email} verified: +${REF_BONUS} runs`);
+    eventCard(env, ctx, '🎁', 'REFERRAL REWARD', [['👤', 'New user', u.name], ['📧', 'Email', email], ['🤝', 'Referrer', u.ref_by], ['⚡', 'Bonus runs', `+${REF_BONUS} referrer, +${REF_NEW} new user`]]);
+    const rf = await one(env, 'SELECT name FROM users WHERE email=?', u.ref_by);
+    await sendMail(env, u.ref_by, `You earned ${REF_BONUS} bonus runs on ${brandOf(env)}`, mailHtml(brandOf(env), 'Referral bonus', `Hi ${(rf && rf.name) || ''}, someone you referred just verified their account. We added ${REF_BONUS} bonus managed runs to your workspace.`, '', ''));
+  } catch (e) { await sentry(env, e, { where: 'referral' }); }
+}
+async function ensureRefCode(env, u) {
+  if (u.ref_code) return u.ref_code;
+  const code = 'r' + rid(5); await run(env, "UPDATE users SET ref_code=? WHERE email=? AND (ref_code='' OR ref_code IS NULL)", code, u.email);
+  const row = await one(env, 'SELECT ref_code FROM users WHERE email=?', u.email); u.ref_code = (row && row.ref_code) || code; return u.ref_code;
+}
+
+// ---------- overdue reminders (called hourly from traffic, and from a cron trigger when one is configured) ----------
+const BOT_UA = /bot|crawl|spider|preview|facebookexternalhit|whatsapp|slack|telegram|twitter|linkedin|skype|discord|embedly|curl|wget|python-requests|headless/i;
+async function sweepOverdue(env, base, brand) {
+  if (!base || !(env.MAIL_WEBHOOK_URL || DEFAULT_MAIL_URL) || !env.MAIL_WEBHOOK_SECRET) return 0;
+  const now = Date.now(), DAY = 864e5; let sent = 0;
+  const rows = await all(env, "SELECT * FROM quotes WHERE paid_at=0 AND status IN ('sent','accepted') AND client_email!='' AND remind_n<3 AND (CASE WHEN due_at>0 THEN due_at ELSE created+? END)<? AND (remind_at=0 OR remind_at<?) ORDER BY created LIMIT 15", 14 * DAY, now, now - 3 * DAY);
+  for (const q of rows) {
+    const claim = await run(env, 'UPDATE quotes SET remind_n=remind_n+1,remind_at=? WHERE id=? AND remind_n=?', now, q.id, q.remind_n);
+    if (!claim.meta || !claim.meta.changes) continue;
+    const owner = await one(env, 'SELECT name,company,email FROM users WHERE email=?', q.owner); if (!owner) continue;
+    const seller = owner.company || owner.name, pay = q.status === 'accepted' || q.kind === 'invoice', link = `${base}/s/${q.id}`;
+    const ok = await sendMail(env, q.client_email, `Reminder: ${q.title} from ${seller}`, mailHtml(brand, pay ? 'Payment reminder' : 'Following up on your quotation', `Hi ${q.client || ''}, a friendly reminder that "${q.title}" (${money(q.total, q.currency)}) from ${seller} ${pay ? 'is awaiting payment' : 'is still waiting for your reply'}. You can review it, accept and pay from the link below.`, link, pay ? 'View and pay' : 'View quotation'));
+    if (!ok) { await run(env, 'UPDATE quotes SET remind_n=?,remind_at=? WHERE id=?', q.remind_n, q.remind_at, q.id); continue; }
+    sent++;
+    await sendMail(env, owner.email, `Reminder sent: ${q.title}`, mailHtml(brand, 'Overdue reminder sent', `We emailed ${q.client_email} a reminder about "${q.title}" (reminder ${q.remind_n + 1} of 3).`, link, 'Open link'));
+    const h = await one(env, 'SELECT url,secret FROM hooks WHERE owner=?', q.owner); if (h) await fireHook(h, 'quote.reminder', { quote: q.id, to: q.client_email, n: q.remind_n + 1 });
+  }
+  return sent;
+}
+let LAST_SWEEP = 0;
+async function maybeSweep(env, base, brand) {
+  if (Date.now() - LAST_SWEEP < 6e5) return; LAST_SWEEP = Date.now();
+  try { if (!env.QV_KV || await cooldown(env, 'cd:sweep', 3600)) return; await sweepOverdue(env, base, brand); } catch { /* never block a request */ }
+}
+// first open of a share link: count it, tell the owner (at most every 30 minutes per link)
+async function trackView(env, ctx, qt, owner, base, brand) {
+  await run(env, 'UPDATE quotes SET views=views+1,viewed_at=CASE WHEN viewed_at=0 THEN ? ELSE viewed_at END WHERE id=?', Date.now(), qt.id);
+  try {
+    if (!env.QV_KV || await cooldown(env, 'cd:qv:' + qt.id, 1800)) return;
+    const who = qt.client || 'Your client';
+    await sendMail(env, qt.owner, `👀 ${who} opened "${qt.title}"`, mailHtml(brand, 'Your link was just opened', `${who} is looking at "${qt.title}" (${money(qt.total, qt.currency)}) right now. Views so far: ${qt.views + 1}.`, base ? base + '/' : '', 'Open dashboard'));
+    const h = await one(env, 'SELECT url,secret FROM hooks WHERE owner=?', qt.owner); if (h) await fireHook(h, 'quote.viewed', { quote: qt.id, views: qt.views + 1 });
+  } catch { /* notifications are best effort */ }
+}
+
 // ---------- WebAuthn (passkeys): attestation "none", ES256 + RS256 ----------
 function cborDecode(buf, off = 0) {
   if (buf.length > 16000) throw new Error('cbor too large');
@@ -484,7 +614,7 @@ function buildPdf(pages) {
   out += `xref\n0 ${objs.length}\n0000000000 65535 f \n` + off.slice(1).map((o) => String(o).padStart(10, '0') + ' 00000 n \n').join('') + `trailer\n<< /Size ${objs.length} /Root 1 0 R >>\nstartxref\n${x}\n%%EOF`;
   return enc.encode(out);
 }
-function quotePdf(brand, qt, owner) {
+function quotePdf(brand, qt, owner, base) {
   const items = parse(qt.items, []), sub = subOf(items), taxAmt = +(qt.total - sub).toFixed(2), doc = qt.kind === 'invoice' ? 'INVOICE' : 'QUOTATION';
   const pages = []; let cur = '', y = 790;
   const txt = (s, x, size = 11, bold = false) => { cur += `BT /${bold ? 'F2' : 'F1'} ${size} Tf ${x} ${y} Td (${pdfText(s)}) Tj ET\n`; };
@@ -496,7 +626,7 @@ function quotePdf(brand, qt, owner) {
   txt(String(qt.title).slice(0, 70), 50, 14, true); y -= 20;
   txt('From: ' + String(owner.company || owner.name).slice(0, 60), 50); y -= 15;
   if (qt.client) { txt('For: ' + String(qt.client).slice(0, 60), 50); y -= 15; }
-  txt('Date: ' + new Date(qt.created).toISOString().slice(0, 10) + '    Ref: ' + qt.id, 50); y -= 15;
+  txt('Date: ' + new Date(qt.created).toISOString().slice(0, 10) + '    Ref: ' + qt.id + (qt.due_at ? '    Due: ' + new Date(qt.due_at).toISOString().slice(0, 10) : ''), 50); y -= 15;
   txt('Status: ' + qt.status.toUpperCase(), 50); y -= 28;
   txt('Item', 50, 10, true); right('Qty', 360, 10, true); right('Price', 450, 10, true); right('Amount', 545, 10, true); y -= 4; line(); y -= 16;
   for (const i of items) {
@@ -508,7 +638,7 @@ function quotePdf(brand, qt, owner) {
   if (qt.tax) { right('Subtotal  ' + cm(sub), 545); y -= 15; right(`Tax ${+qt.tax}%  ` + cm(taxAmt), 545); y -= 18; }
   right('TOTAL  ' + cm(qt.total), 545, 14, true); y -= 30;
   if (qt.notes) for (const l of String(qt.notes).split('\n').slice(0, 12)) { if (y < 80) page(); txt(l.slice(0, 95), 50, 10); y -= 13; }
-  y = 40; txt('Powered by ' + brand, 50, 9);
+  y = 40; txt('Powered by ' + brand + (base ? '   |   Send quotations in 60 seconds: ' + String(base).replace(/^https?:\/\//, '') : ''), 50, 9);
   pages.push(cur);
   return buildPdf(pages);
 }
@@ -573,16 +703,17 @@ async function api(req, env, ctx, url) {
   const needOwner = (u) => { if (!env.OWNER_EMAIL) throw httpErr(403, 'Set OWNER_EMAIL to review payments'); if (!isOwner(u)) throw httpErr(403, 'Owner only'); };
   const keysUsed = async (e) => (await one(env, 'SELECT COUNT(*) n FROM keys WHERE owner=?', e)).n;
   const seatsUsed = async (e) => 1 + (await one(env, 'SELECT COUNT(*) n FROM teams WHERE owner=?', e)).n;
-  const limitsOf = async (u) => { const c = capOf(u); return { runs: c.runs, keys: { used: await keysUsed(u.ws), limit: c.keys }, seats: { used: await seatsUsed(u.ws), limit: c.seats } }; };
-  const newUser = async (f) => { await run(env, 'INSERT INTO users(email,name,phone,salt,hash,social,email_verified,created) VALUES(?,?,?,?,?,?,?,?)', f.email, f.name, f.phone || '', f.salt || '', f.hash || '', f.social || '', f.verified ? 1 : 0, Date.now()); background(ctx, tg(env, `New ${brand} sign-up (${f.how})\nName: ${f.name}\nEmail: ${f.email}\nPhone: ${f.phone || 'not given'}`)); };
+  const limitsOf = async (u) => { const c = capOf(u); return { runs: c.runs + (u.bonus_runs | 0), keys: { used: await keysUsed(u.ws), limit: c.keys }, seats: { used: await seatsUsed(u.ws), limit: c.seats } }; };
+  const newUser = async (f) => { await run(env, 'INSERT INTO users(email,name,phone,salt,hash,social,email_verified,created) VALUES(?,?,?,?,?,?,?,?)', f.email, f.name, f.phone || '', f.salt || '', f.hash || '', f.social || '', f.verified ? 1 : 0, Date.now()); };
+  const mailOwner = (qt, subject, text) => background(ctx, sendMail(env, qt.owner, subject, mailHtml(brand, subject, text, baseOf(env, url) + '/', 'Open dashboard')));
   const mailReady = () => !!((env.MAIL_WEBHOOK_URL || DEFAULT_MAIL_URL) && env.MAIL_WEBHOOK_SECRET);
   let mm;
 
   if (p === '/api/health') {
-    return json({ ok: true, brand, time: Date.now(), db: true, storage: 'D1', kv: !!env.QV_KV, vault: !!env.QV_VAULT, mail: mailReady(), passkeys: true, ai: !!env.ANTHROPIC_API_KEY, stripe: !!(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET), google: !!env.GOOGLE_CLIENT_ID, github: !!(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET), sentry: !!env.SENTRY_DSN, telegram: !!(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID), audit: true });
+    return json({ ok: true, brand, time: Date.now(), db: true, storage: 'D1', kv: !!env.QV_KV, vault: !!env.QV_VAULT, mail: mailReady(), passkeys: true, ai: !!env.ANTHROPIC_API_KEY, stripe: !!(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET), google: !!env.GOOGLE_CLIENT_ID, github: !!(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET), sentry: !!env.SENTRY_DSN, telegram: !!(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID), turnstile: !!(env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY), lemon: !!(env.LEMON_API_KEY && env.LEMON_STORE_ID && env.LEMON_WEBHOOK_SECRET), audit: true });
   }
   if (p === '/api/config' && m === 'GET') {
-    return json({ brand, googleClientId: env.GOOGLE_CLIENT_ID || '', github: !!(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET), ai: !!env.ANTHROPIC_API_KEY, stripe: !!(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET), plans: PLANS, free: FREE, commissionPct: COMMISSION_PCT, mail: mailReady(), passkeys: true, vault: !!env.QV_VAULT, glossary: GLOSSARY,
+    return json({ brand, turnstileSiteKey: env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY ? env.TURNSTILE_SITE_KEY : '', lemon: !!(env.LEMON_API_KEY && env.LEMON_STORE_ID && env.LEMON_WEBHOOK_SECRET), refBonus: { referrer: REF_BONUS, newUser: REF_NEW }, googleClientId: env.GOOGLE_CLIENT_ID || '', github: !!(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET), ai: !!env.ANTHROPIC_API_KEY, stripe: !!(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET), plans: PLANS, free: FREE, commissionPct: COMMISSION_PCT, mail: mailReady(), passkeys: true, vault: !!env.QV_VAULT, glossary: GLOSSARY,
       platformPay: { bkash: env.BKASH_NUMBER || '', nagad: env.NAGAD_NUMBER || '', rocket: env.ROCKET_NUMBER || '', lightning: !!lnAddrOk(env.BTC_LIGHTNING_ADDRESS) } });
   }
   if (p === '/api/log' && m === 'POST') {
@@ -604,7 +735,7 @@ async function api(req, env, ctx, url) {
     if (msg.length < 3) return fail(400, 'Write a message first');
     const type = ['feedback', 'bug', 'idea', 'question', 'message'].includes(b.type) ? b.type : 'message', name = String(b.name || (u && u.name) || 'Guest').slice(0, 80), email = String(b.email || (u && u.email) || '').trim().slice(0, 120);
     await run(env, 'INSERT INTO feedback(id,type,name,email,message,at) VALUES(?,?,?,?,?,?)', rid(), type, name, email, msg, Date.now());
-    const sent = await tg(env, `${brand} ${type} from ${name}${email ? ' <' + email + '>' : ''}\n\n${msg}`);
+    const g = geoOf(req), sent = await tg(env, [`${{ bug: '🐞', idea: '💡', question: '❓', feedback: '📝' }[type] || '📩'} ${brand} · ${type.toUpperCase()}`, SEP, `👤 Name: ${clip(name, 80)}`, `📧 Email: ${clip(email, 120)}`, `🌍 Country: ${g.country ? flagOf(g.cc) + ' ' + g.country : '-'}`, `🌐 IP address: ${g.ip || '-'}`, `💻 Device: ${deviceOf(req.headers.get('user-agent')).type} · ${deviceOf(req.headers.get('user-agent')).browser}`, SEP, ...bodyRows(msg), SEP, `🛡️ Powered by ${brand}`].join('\n'));
     return json({ ok: true, relayed: sent });
   }
 
@@ -618,7 +749,7 @@ async function api(req, env, ctx, url) {
     if (await one(env, 'SELECT 1 x FROM users WHERE email=?', email)) return fail(409, 'Account already exists');
     const salt = rid(8), name = String(b.name || email.split('@')[0]).trim().slice(0, 60) || email.split('@')[0];
     await newUser({ email, name, phone, salt, hash: await hashPw(pw, salt), how: 'email' });
-    if (/^[\w-]{6,20}$/.test(String(b.ref || ''))) await run(env, 'UPDATE quotes SET signups=signups+1 WHERE id=?', b.ref);
+    await applyRef(env, email, b.ref);
     await audit(env, email, email, 'account.create', 'email');
     authAlert(env, ctx, req, 'new sign-up', 'Email', { name, email, phone });
     background(ctx, sendVerify(env, { email, name }, baseOf(env, url)));
@@ -653,7 +784,7 @@ async function api(req, env, ctx, url) {
     try {
       const t = q.get('token'), rec = await peekToken(env, 'ev', t);
       if (!rec || !rec.email) return to('qv_err=' + encodeURIComponent('That verification link has expired. Request a new one from Personal info.'));
-      await run(env, 'UPDATE users SET email_verified=1 WHERE email=?', rec.email); await dropToken(env, 'ev', t);
+      await run(env, 'UPDATE users SET email_verified=1 WHERE email=?', rec.email); await dropToken(env, 'ev', t); background(ctx, grantReferral(env, ctx, rec.email));
       return to('qv_msg=verified');
     } catch { return to('qv_err=' + encodeURIComponent('Verification is temporarily unavailable.')); }
   }
@@ -702,19 +833,19 @@ async function api(req, env, ctx, url) {
   if (p === '/api/auth/google' && m === 'POST') {
     if (!env.GOOGLE_CLIENT_ID) return fail(503, 'Google sign-in is not configured');
     if (limited(req, 'auth', 20, 60000)) return fail(429, 'Too many attempts. Try again in a minute.');
-    const tok = String((await readBody()).access_token || ''); let ti, g;
+    const gb = await readBody(), tok = String(gb.access_token || ''); let ti, g;
     try {
       ti = await (await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(tok), { signal: AbortSignal.timeout(8000) })).json();
       g = await (await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { authorization: 'Bearer ' + tok }, signal: AbortSignal.timeout(8000) })).json();
     } catch { return fail(502, 'Google could not be reached'); }
     const email = String(g.email || '').toLowerCase();
     if ((ti.aud !== env.GOOGLE_CLIENT_ID && ti.azp !== env.GOOGLE_CLIENT_ID) || g.email_verified !== true || !emailOk(email)) return fail(401, 'Google sign-in could not be verified');
-    const u = await one(env, 'SELECT hash,name,tv FROM users WHERE email=?', email);
+    const u = await one(env, 'SELECT hash,name,tv,phone FROM users WHERE email=?', email);
     if (u && u.hash) return fail(409, 'This email already has a password account. Sign in with your password.');
     const name = u ? u.name : String(g.name || email.split('@')[0]).slice(0, 60);
-    if (!u) await newUser({ email, name, social: 'google', how: 'Google', verified: true });
+    if (!u) { await newUser({ email, name, social: 'google', how: 'Google', verified: true }); await applyRef(env, email, gb.ref); background(ctx, grantReferral(env, ctx, email)); }
     await audit(env, email, email, 'auth.login', 'google');
-    authAlert(env, ctx, req, u ? 'sign-in' : 'new sign-up', 'Google', { name, email });
+    authAlert(env, ctx, req, u ? 'sign-in' : 'new sign-up', 'Google', { name, email, phone: u && u.phone });
     return json({ token: await signToken(env, email, u ? u.tv : 0), name });
   }
   const ghBase = baseOf(env, url), ghCb = ghBase + '/api/auth/github/callback';
@@ -739,12 +870,12 @@ async function api(req, env, ctx, url) {
     } catch { return back('GitHub could not be reached'); }
     const pe = Array.isArray(ems) ? ems.find((x) => x.primary && x.verified) : null, email = String((pe && pe.email) || '').toLowerCase();
     if (!emailOk(email)) return back('Your GitHub account needs a verified primary email');
-    const u = await one(env, 'SELECT hash,tv FROM users WHERE email=?', email);
+    const u = await one(env, 'SELECT hash,tv,phone FROM users WHERE email=?', email);
     if (u && u.hash) return back('This email already has a password account. Sign in with your password.');
     const ghName = String(me.name || me.login || email.split('@')[0]).slice(0, 60);
-    if (!u) await newUser({ email, name: ghName, social: 'github', how: 'GitHub', verified: true });
+    if (!u) { await newUser({ email, name: ghName, social: 'github', how: 'GitHub', verified: true }); background(ctx, grantReferral(env, ctx, email)); }
     await audit(env, email, email, 'auth.login', 'github');
-    authAlert(env, ctx, req, u ? 'sign-in' : 'new sign-up', 'GitHub', { name: ghName, email });
+    authAlert(env, ctx, req, u ? 'sign-in' : 'new sign-up', 'GitHub', { name: ghName, email, phone: u && u.phone });
     return back('', await signToken(env, email, u ? u.tv : 0));
   }
 
@@ -788,6 +919,7 @@ async function api(req, env, ctx, url) {
       const u = await one(env, 'SELECT * FROM users WHERE email=?', pk.owner); if (!u) return bad();
       await run(env, 'UPDATE passkeys SET counter=? WHERE id=?', r.counter, pk.id);
       await audit(env, u.email, u.email, 'auth.login', 'passkey');
+      authAlert(env, ctx, req, 'sign-in', 'Passkey', u);
       return json({ token: await signToken(env, u.email, u.tv), name: u.name });
     } catch (e) { if (e && e.status === 503) throw e; return bad(); }
   }
@@ -801,7 +933,7 @@ async function api(req, env, ctx, url) {
   // ----- profile, MFA -----
   if (p === '/api/me' && m === 'GET') {
     const u = await roll(env, await needUser());
-    return json({ ...profileOf(u), plan: planOf(u), planUntil: (u.eff || u).plan_until || 0, role: u.role, workspace: u.ws, used: u.used, limit: capOf(u).runs, tokens: u.tokens, created: u.created, limits: await limitsOf(u), isOwner: isOwner(u), passkeys: (await one(env, 'SELECT COUNT(*) n FROM passkeys WHERE owner=?', u.email)).n, recoveryLeft: parse(u.recovery, []).length });
+    return json({ ...profileOf(u), plan: planOf(u), planUntil: (u.eff || u).plan_until || 0, role: u.role, workspace: u.ws, used: u.used, limit: capOf(u).runs + (u.bonus_runs | 0), bonusRuns: u.bonus_runs | 0, daily: DAILY[planOf(u)] || DAILY.free, referral: { code: await ensureRefCode(env, u), link: baseOf(env, url) + '/#ref=' + u.ref_code, invited: (await one(env, 'SELECT COUNT(*) n FROM users WHERE ref_by=?', u.email)).n, rewarded: (await one(env, 'SELECT COUNT(*) n FROM users WHERE ref_by=? AND ref_paid=1', u.email)).n, referrerBonus: REF_BONUS, newUserBonus: REF_NEW }, tokens: u.tokens, created: u.created, limits: await limitsOf(u), isOwner: isOwner(u), passkeys: (await one(env, 'SELECT COUNT(*) n FROM passkeys WHERE owner=?', u.email)).n, recoveryLeft: parse(u.recovery, []).length });
   }
   if (p === '/api/me' && m === 'PUT') {
     const u = await needUser(), b = await readBody();
@@ -809,6 +941,7 @@ async function api(req, env, ctx, url) {
     if (b.phone !== undefined) { const ph = String(b.phone).trim(); if (!phoneOk(ph)) return fail(400, 'A valid phone number is required'); u.phone = ph; }
     if (b.company !== undefined) u.company = String(b.company).trim().slice(0, 80);
     if (b.addr !== undefined) u.addr = String(b.addr).trim().slice(0, 200);
+    if (b.logo !== undefined) { const lg = String(b.logo).trim(); if (lg && !/^https:\/\/[^\s"'<>]{4,290}$/.test(lg)) return fail(400, 'Logo must be a https:// image link'); u.logo = lg; }
     if (b.cur !== undefined) { if (!['USD', 'BDT', 'BTC'].includes(b.cur)) return fail(400, 'Currency must be USD, BDT or BTC'); u.cur = b.cur; }
     if (b.pay !== undefined) {
       const x = b.pay || {}, o = {};
@@ -818,7 +951,7 @@ async function api(req, env, ctx, url) {
       u.pay_json = JSON.stringify(o);
       await audit(env, u.ws, u.email, 'settings.payment.update', 'payout details');
     }
-    await run(env, 'UPDATE users SET name=?,phone=?,company=?,addr=?,cur=?,pay_json=? WHERE email=?', u.name, u.phone, u.company, u.addr, u.cur, u.pay_json, u.email);
+    await run(env, 'UPDATE users SET name=?,phone=?,company=?,addr=?,cur=?,pay_json=?,logo=? WHERE email=?', u.name, u.phone, u.company, u.addr, u.cur, u.pay_json, u.logo || '', u.email);
     return json(profileOf(u));
   }
   if (p === '/api/mfa/setup' && m === 'POST') {
@@ -1028,7 +1161,7 @@ async function api(req, env, ctx, url) {
     if (mm[2] === 'accept' && m === 'POST') {
       const b = await readBody(); if (qt.status === 'paid') return json({ status: 'paid' });
       const name = String(b.name || '').trim().slice(0, 80); if (name.length < 2) return fail(400, 'Enter your name to accept');
-      if (qt.status !== 'accepted') { await run(env, "UPDATE quotes SET status='accepted',accepted_by=?,accepted_at=? WHERE id=?", name, Date.now(), qt.id); background(ctx, tg(env, `${brand}: "${qt.title}" was accepted by ${name}`)); await notifyOwnerHook(env, ctx, qt.owner, 'quote.accepted', { quote: qt.id, by: name }); }
+      if (qt.status !== 'accepted') { await run(env, "UPDATE quotes SET status='accepted',accepted_by=?,accepted_at=? WHERE id=?", name, Date.now(), qt.id); eventCard(env, ctx, '✅', 'QUOTE ACCEPTED', [['📄', 'Quote', qt.title], ['👤', 'Accepted by', name], ['💰', 'Total', money(qt.total, qt.currency)], ['🔗', 'Ref', qt.id]], req); mailOwner(qt, `✅ ${name} accepted "${qt.title}"`, `${name} accepted "${qt.title}" (${money(qt.total, qt.currency)}).`); await notifyOwnerHook(env, ctx, qt.owner, 'quote.accepted', { quote: qt.id, by: name }); }
       return json({ status: 'accepted' });
     }
     if (mm[2] === 'lightning' && m === 'GET') {
@@ -1044,7 +1177,7 @@ async function api(req, env, ctx, url) {
       const ukey = `${prov}:${tx}`; if (await one(env, 'SELECT 1 x FROM payments WHERE ukey=?', ukey)) return fail(409, 'This transaction ID was already submitted');
       const rec = { id: rid(), at: Date.now() };
       await run(env, "INSERT INTO payments(id,ukey,kind,txid,provider,quote_id,amount,currency,email,payer,status,at) VALUES(?,?,?,?,?,?,?,?,?,?,'pending',?)", rec.id, ukey, 'quote', tx, prov, qt.id, prov === 'lightning' ? qt.sats : qt.total, prov === 'lightning' ? 'SATS' : qt.currency, qt.owner, String(b.name || '').slice(0, 80), rec.at);
-      background(ctx, tg(env, `${brand}: payment proof (${prov}) for "${qt.title}" ${money(qt.total, qt.currency)}. Review it in Quotes.`));
+      eventCard(env, ctx, '💳', 'QUOTE PAYMENT PROOF', [['📄', 'Quote', qt.title], ['💰', 'Amount', money(qt.total, qt.currency)], ['🏦', 'Method', prov], ['🧾', 'TxID', tx], ['👤', 'Payer', b.name]], req); mailOwner(qt, `💳 Payment proof for "${qt.title}"`, `A payment proof (${prov}, ${tx}) was submitted for "${qt.title}". Review it in Quotes.`);
       return json({ received: true, message: 'Payment details received. The seller confirms them before the link shows as paid.' });
     }
     return fail(405, 'Method not allowed');
@@ -1109,9 +1242,19 @@ async function api(req, env, ctx, url) {
   }
   // run an agent: body { input, agent:{name,prompt}, byok:{provider,key} }; answer { output, tokens, gateway, steps, ms }
   if ((mm = p.match(/^\/api\/agents\/([\w-]{1,40})\/run$/)) && m === 'POST') {
-    const u = await roll(env, await needUser()); await write(u);
-    const plan = planOf(u); if (limited(req, 'run:' + plan, RATE_LIMITS[plan] || 30, 60000)) return fail(429, 'Too many runs per minute for your plan. Slow down or upgrade.');
+    const viaKey = /^Bearer\s+qvm_live_/i.test(req.headers.get('authorization') || '');
+    const u = await roll(env, await needUser()); await write(u); needVerified(u);
+    const plan = planOf(u); if (limited(req, 'run:' + plan, RATE_LIMITS[plan] || 30, 60000, u.email)) return fail(429, 'Too many runs per minute for your plan. Slow down or upgrade.');
     const b = await readBody(200000), input = String(b.input || '').trim().slice(0, 12000); if (!input) return fail(400, 'Input is required');
+    // bot protection: a Turnstile token (or a 15-minute pass issued after one) is required for browser sessions; API keys are exempt
+    let passOut = '';
+    if (!viaKey && env.TURNSTILE_SECRET_KEY) {
+      const pass = await peekToken(env, 'tp', b.pass);
+      if (!(pass && pass.email === u.email)) {
+        if (!(await turnstileOk(env, req, b.turnstile))) return fail(403, 'Security check failed. Please complete the verification and try again.', { turnstile: true });
+        passOut = await mintToken(env, 'tp', { email: u.email }, 900);
+      }
+    }
     const byok = byokOf(b.byok), id = mm[1];
     let agent = await one(env, 'SELECT id,owner,name,prompt,tools FROM agents WHERE id=? AND (owner=? OR owner=?)', id, 'system', u.ws);
     if (agent) agent.tools = parse(agent.tools, []);
@@ -1123,12 +1266,21 @@ async function api(req, env, ctx, url) {
     }
     if (agent.rent_until && agent.rent_until < Date.now()) return fail(402, 'This rented agent has expired');
     const cap = capOf(u);
-    if (!byok && u.used >= cap.runs) return fail(402, `You used all ${cap.runs} managed runs this month. Upgrade your plan, or connect your own API key.`, { limit: cap.runs, used: u.used });
+    const bonus = u.bonus_runs | 0, day = new Date().toISOString().slice(0, 10), budgetKey = 'ai:spend:' + day;
+    if (!byok && u.used >= cap.runs + bonus) return fail(402, `You used all ${cap.runs + bonus} managed runs this month. Upgrade your plan, or connect your own API key.`, { limit: cap.runs + bonus, used: u.used });
+    let spent = 0;
+    if (!byok) {
+      const dl = DAILY[plan] || DAILY.free, t = await one(env, "SELECT COUNT(*) n, COALESCE(SUM(cost),0) c FROM runs WHERE owner=? AND gateway='managed' AND at>=?", u.ws, Date.parse(day + 'T00:00:00Z'));
+      if (t.n >= dl.runs) return fail(429, `Daily limit reached: ${dl.runs} managed runs per day on your plan. It resets at 00:00 UTC. Upgrade, or connect your own API key.`, { daily: true, limit: dl.runs });
+      if (t.c >= dl.usd) return fail(429, 'Daily AI spending limit reached for your plan. It resets at 00:00 UTC. Upgrade, or connect your own API key.', { daily: true });
+      if (env.QV_KV) { spent = (+(await env.QV_KV.get(budgetKey)) || 0) / 1e6; if (spent >= (+env.DAILY_AI_BUDGET_USD || 50)) return fail(503, 'AI capacity for today is used up. Please try again after 00:00 UTC.'); }
+    }
     const r = await runAgent(env, u, agent, input, byok), cost = +(r.tokens / 1000 * RATE_PER_1K).toFixed(6), at = Date.now(), rid1 = rid();
     await run(env, 'INSERT INTO runs(id,owner,agent,input,output,steps,tokens,cost,gateway,ms,at) VALUES(?,?,?,?,?,?,?,?,?,?,?)', rid1, u.ws, agent.name, input.slice(0, 4000), r.text.slice(0, 20000), JSON.stringify(r.steps), r.tokens, cost, byok ? byok.provider : 'managed', r.ms, at);
     await run(env, 'UPDATE users SET used=used+?,tokens=tokens+?,cost=cost+? WHERE email=?', byok ? 0 : 1, r.tokens, cost, u.email);
+    if (!byok && env.QV_KV) background(ctx, env.QV_KV.put(budgetKey, String(Math.round((spent + cost) * 1e6)), { expirationTtl: 172800 }));
     if (id !== 'qv-research') await logHistory(env, { owner: u.ws, type: 'run', title: agent.name, summary: `${r.tokens} tokens by ${u.email}`, detail: { runId: rid1, input: input.slice(0, 300), output: r.text.slice(0, 1500), by: u.email }, at });
-    return json({ id: rid1, output: r.text, steps: r.steps, tokens: r.tokens, ms: r.ms, gateway: byok ? byok.provider : '', used: u.used + (byok ? 0 : 1), limit: cap.runs });
+    return json({ id: rid1, output: r.text, steps: r.steps, tokens: r.tokens, ms: r.ms, gateway: byok ? byok.provider : '', used: u.used + (byok ? 0 : 1), limit: cap.runs + bonus, ...(passOut ? { pass: passOut } : {}) });
   }
   if (p === '/api/runs' && m === 'GET') {
     const u = await needUser(); return json(await all(env, 'SELECT id,agent,input,output,tokens,gateway,ms,at FROM runs WHERE owner=? ORDER BY at DESC LIMIT ?', u.ws, intParam(q.get('limit'), 50, 1, 200)));
@@ -1138,6 +1290,23 @@ async function api(req, env, ctx, url) {
     return json((await all(env, 'SELECT id,type,title,summary,detail,at FROM history WHERE owner=? ' + (HISTORY_TYPES.includes(ty) ? 'AND type=? ' : '') + 'ORDER BY at DESC LIMIT ?', u.ws, ...(HISTORY_TYPES.includes(ty) ? [ty] : []), intParam(q.get('limit'), 100, 1, 300))).map((r) => ({ ...r, detail: parse(r.detail, {}) })));
   }
 
+  // owner-only: shows which integrations are live and what is still missing (no secret values are ever returned)
+  if (p === '/api/admin/readiness' && m === 'GET') {
+    const u = await needUser(); needOwner(u);
+    const chk = (name, ok, hint) => ({ name, ok: !!ok, hint: ok ? '' : hint });
+    let dbOk = false; try { dbOk = !!(await one(env, 'SELECT 1 x')); } catch { /* reported below */ }
+    return json({ checks: [
+      chk('D1 database (DB)', dbOk, 'Bind a D1 database named DB'), chk('KV (QV_KV)', env.QV_KV, 'Bind the QV_KV namespace'), chk('Vault KV (QV_VAULT)', env.QV_VAULT, 'Bind the QV_VAULT namespace'),
+      chk('JWT_SECRET', env.JWT_SECRET && env.JWT_SECRET.length >= 16, 'Set JWT_SECRET to 16+ random characters'), chk('Owner email', env.OWNER_EMAIL, 'Set OWNER_EMAIL so you can review manual payments'), chk('Public URL', env.PUBLIC_URL, 'Set PUBLIC_URL (needed for reminder emails and cron)'),
+      chk('Email dispatch', mailReady(), 'Set MAIL_WEBHOOK_URL and MAIL_WEBHOOK_SECRET'), chk('AI model', env.ANTHROPIC_API_KEY, 'Set ANTHROPIC_API_KEY'),
+      chk('Turnstile (AI bot protection)', env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY, 'Set TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY; until then AI runs are not bot-protected'),
+      chk('Google sign-in', env.GOOGLE_CLIENT_ID, 'Set GOOGLE_CLIENT_ID and add your domain to Authorized JavaScript origins'), chk('GitHub sign-in', env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET, 'Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET; callback URL is ' + baseOf(env, url) + '/api/auth/github/callback'),
+      chk('Telegram alerts', env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID, 'Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID'),
+      chk('Stripe checkout', env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET, 'Set STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET and STRIPE_PRICE_<PLAN>'), chk('Lemon Squeezy (optional)', env.LEMON_API_KEY && env.LEMON_STORE_ID && env.LEMON_WEBHOOK_SECRET, 'Set LEMON_API_KEY, LEMON_STORE_ID, LEMON_WEBHOOK_SECRET and LEMON_VARIANT_<PLAN>'),
+      chk('bKash number', env.BKASH_NUMBER, 'Set BKASH_NUMBER'), chk('Nagad number', env.NAGAD_NUMBER, 'Set NAGAD_NUMBER'), chk('Rocket number', env.ROCKET_NUMBER, 'Set ROCKET_NUMBER'), chk('Bitcoin Lightning', lnAddrOk(env.BTC_LIGHTNING_ADDRESS), 'Set BTC_LIGHTNING_ADDRESS (you@wallet.com)'),
+      chk('Sandbox billing is off', !/^(1|true|yes)$/i.test(String(env.SANDBOX_BILLING || '')), 'Remove SANDBOX_BILLING in production'),
+    ] });
+  }
   // ----- API keys (shown once, stored as SHA-256) -----
   if (p === '/api/keys' && m === 'GET') { const u = await needUser(); await admin(u); return json(await all(env, 'SELECT id,hint,created FROM keys WHERE owner=? ORDER BY created DESC', u.ws)); }
   if (p === '/api/keys' && m === 'POST') {
@@ -1183,12 +1352,23 @@ async function api(req, env, ctx, url) {
     const rec = { id: rid(), at: Date.now() };
     await run(env, "INSERT INTO payments(id,ukey,kind,txid,provider,plan,cycle,amount,currency,email,payer,status,at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'pending',?)", rec.id, ukey, 'plan', tx, prov, plan, cycle, amount, mobile ? 'BDT' : 'BTC', 'platform', u.email, rec.at);
     await audit(env, u.ws, u.email, 'billing.proof', `${plan}/${cycle} via ${prov}`);
-    background(ctx, tg(env, `${brand}: plan payment proof\n${u.email} wants ${plan} (${cycle}) via ${prov}\nTxID: ${tx}\nAmount: ${amount} ${mobile ? 'BDT' : 'BTC'}`));
+    eventCard(env, ctx, '💳', 'PLAN PAYMENT PROOF', [['👤', 'User', u.name], ['📧', 'Email', u.email], ['📦', 'Plan', `${plan} (${cycle})`], ['🏦', 'Method', prov], ['🧾', 'TxID', tx], ['💰', 'Amount', `${amount} ${mobile ? 'BDT' : 'BTC'}`]], req);
     return json({ received: true, id: rec.id, message: 'Payment details received. Your plan turns on as soon as the founder confirms the transaction.' });
   }
   if (p === '/api/billing/checkout' && m === 'POST') {
-    const u = await needUser(); await admin(u); if (!env.STRIPE_SECRET_KEY) return fail(503, 'Card checkout is not configured on this server');
-    const b = await readBody(5000), { plan, cycle } = planCycle(b), price = env['STRIPE_PRICE_' + plan.toUpperCase() + (cycle === 'yearly' ? '_YEARLY' : '')];
+    const u = await needUser(); await admin(u);
+    const b = await readBody(5000), { plan, cycle } = planCycle(b);
+    if (String(b.provider || '').toLowerCase() === 'lemon') {
+      const variant = env['LEMON_VARIANT_' + plan.toUpperCase() + (cycle === 'yearly' ? '_YEARLY' : '')];
+      if (!(env.LEMON_API_KEY && env.LEMON_STORE_ID && env.LEMON_WEBHOOK_SECRET)) return fail(503, 'Lemon Squeezy checkout is not configured on this server');
+      if (!variant) return fail(503, `No Lemon Squeezy variant is set for ${plan} (${cycle})`);
+      let lr, lj; try { lr = await fetch('https://api.lemonsqueezy.com/v1/checkouts', { method: 'POST', headers: { accept: 'application/vnd.api+json', 'content-type': 'application/vnd.api+json', authorization: 'Bearer ' + env.LEMON_API_KEY }, body: JSON.stringify({ data: { type: 'checkouts', attributes: { checkout_data: { email: u.email, name: u.name || '', custom: { email: u.email, plan, cycle } }, product_options: { redirect_url: baseOf(env, url) + '/#qv_msg=' + encodeURIComponent('Payment received. Your plan updates in a moment.') } }, relationships: { store: { data: { type: 'stores', id: String(env.LEMON_STORE_ID) } }, variant: { data: { type: 'variants', id: String(variant) } } } } }), signal: AbortSignal.timeout(15000) }); lj = await lr.json(); } catch { return fail(502, 'Lemon Squeezy did not respond. Try again.'); }
+      const link = lj && lj.data && lj.data.attributes && lj.data.attributes.url;
+      if (!lr.ok || !link) return fail(502, String((lj && lj.errors && lj.errors[0] && lj.errors[0].detail) || 'Lemon Squeezy rejected the request').replace(env.LEMON_API_KEY, '***').slice(0, 200));
+      await audit(env, u.ws, u.email, 'billing.checkout', `${plan}/${cycle} lemon`); return json({ url: link });
+    }
+    if (!env.STRIPE_SECRET_KEY) return fail(503, 'Card checkout is not configured on this server');
+    const price = env['STRIPE_PRICE_' + plan.toUpperCase() + (cycle === 'yearly' ? '_YEARLY' : '')];
     if (!price) return fail(503, `No Stripe price is set for ${plan} (${cycle})`);
     const base = baseOf(env, url), f = new URLSearchParams({ mode: 'subscription', 'line_items[0][price]': price, 'line_items[0][quantity]': '1', success_url: base + '/#qv_msg=' + encodeURIComponent('Payment received. Your plan updates in a moment.'), cancel_url: base + '/#qv_msg=' + encodeURIComponent('Checkout cancelled'), client_reference_id: u.email, 'metadata[email]': u.email, 'metadata[plan]': plan, 'metadata[cycle]': cycle, 'subscription_data[metadata][email]': u.email });
     if (u.stripe_customer) f.set('customer', u.stripe_customer); else f.set('customer_email', u.email);
@@ -1206,13 +1386,34 @@ async function api(req, env, ctx, url) {
       const md = o.metadata || {}, email = String(md.email || o.client_reference_id || '').toLowerCase(), plan = String(md.plan || ''), cycle = md.cycle === 'yearly' ? 'yearly' : 'monthly';
       if (PLANS[plan] && email && await one(env, 'SELECT 1 x FROM users WHERE email=?', email)) {
         const ins = await run(env, "INSERT OR IGNORE INTO payments(id,ukey,kind,txid,provider,plan,cycle,amount,currency,email,payer,status,reviewed_by,at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'approved','stripe',?)", rid(), 'stripe:' + o.id, 'plan', o.id, 'stripe', plan, cycle, (o.amount_total || 0) / 100, String(o.currency || 'usd').toUpperCase(), 'platform', email, Date.now());
-        if (ins.meta && ins.meta.changes) { await activate(email, plan, cycle); if (o.customer) await run(env, 'UPDATE users SET stripe_customer=? WHERE email=?', String(o.customer), email); await audit(env, email, 'stripe', 'billing.paid', `${plan}/${cycle}`); background(ctx, tg(env, `${brand}: Stripe payment, ${email} is now on ${plan} (${cycle})`)); }
+        if (ins.meta && ins.meta.changes) { await activate(email, plan, cycle); if (o.customer) await run(env, 'UPDATE users SET stripe_customer=? WHERE email=?', String(o.customer), email); await audit(env, email, 'stripe', 'billing.paid', `${plan}/${cycle}`); eventCard(env, ctx, '💎', 'STRIPE PAYMENT', [['📧', 'Email', email], ['📦', 'Plan', `${plan} (${cycle})`], ['💰', 'Amount', `${(o.amount_total || 0) / 100} ${String(o.currency || 'usd').toUpperCase()}`]]); }
       }
     } else if (ev.type === 'invoice.paid' && o.billing_reason === 'subscription_cycle' && o.customer) {
       const us = await one(env, 'SELECT email,plan,plan_until FROM users WHERE stripe_customer=?', String(o.customer));
       if (us && us.plan !== 'free' && await run(env, "INSERT OR IGNORE INTO payments(id,ukey,kind,txid,provider,plan,amount,currency,email,payer,status,reviewed_by,at) VALUES(?,?,?,?,?,?,?,?,?,?,'approved','stripe',?)", rid(), 'stripe:' + o.id, 'plan', o.id, 'stripe', us.plan, (o.amount_paid || 0) / 100, String(o.currency || 'usd').toUpperCase(), 'platform', us.email, Date.now()).then((r) => r.meta && r.meta.changes))
-        await run(env, 'UPDATE users SET plan_until=? WHERE email=?', Math.max(Date.now(), us.plan_until || 0) + 31 * 864e5, us.email);
+        { const pe = +((((o.lines || {}).data || [])[0] || {}).period || {}).end * 1000, now = Date.now(); await run(env, 'UPDATE users SET plan_until=? WHERE email=?', pe > now && pe < now + 400 * 864e5 ? Math.max(pe + 864e5, us.plan_until || 0) : Math.max(now, us.plan_until || 0) + 31 * 864e5, us.email); }
     } else if (ev.type === 'customer.subscription.deleted' && o.customer) await run(env, "UPDATE users SET plan='free',plan_until=0 WHERE stripe_customer=?", String(o.customer));
+    return json({ received: true });
+  }
+  if (p === '/api/lemon/webhook' && m === 'POST') {
+    if (!env.LEMON_WEBHOOK_SECRET) return fail(503, 'Lemon Squeezy webhook is not configured');
+    const raw = await req.text(), sig = String(req.headers.get('x-signature') || '').toLowerCase();
+    if (!sig || !safeEq(sig, hex(await hmacRaw(env.LEMON_WEBHOOK_SECRET, raw)))) return fail(400, 'Bad signature');
+    const ev = parse(raw, null), name = ev && ev.meta && ev.meta.event_name, cd = (ev && ev.meta && ev.meta.custom_data) || {}, d = (ev && ev.data) || {}, at = d.attributes || {};
+    const email = String(cd.email || at.user_email || '').toLowerCase(), plan = String(cd.plan || ''), cycle = cd.cycle === 'yearly' ? 'yearly' : 'monthly';
+    if (!name || !email || !(await one(env, 'SELECT 1 x FROM users WHERE email=?', email))) return json({ received: true });
+    if (name === 'order_created' && at.status === 'paid' && PLANS[plan]) {
+      const ins = await run(env, "INSERT OR IGNORE INTO payments(id,ukey,kind,txid,provider,plan,cycle,amount,currency,email,payer,status,reviewed_by,at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'approved','lemon',?)", rid(), 'lemon:order:' + d.id, 'plan', String(d.id), 'lemon', plan, cycle, (at.total || 0) / 100, String(at.currency || 'USD').toUpperCase(), 'platform', email, Date.now());
+      if (ins.meta && ins.meta.changes) { await activate(email, plan, cycle); await audit(env, email, 'lemon', 'billing.paid', `${plan}/${cycle}`); eventCard(env, ctx, '🍋', 'LEMON SQUEEZY PAYMENT', [['📧', 'Email', email], ['📦', 'Plan', `${plan} (${cycle})`], ['💰', 'Amount', `${(at.total || 0) / 100} ${String(at.currency || 'USD').toUpperCase()}`]]); }
+    } else if (name === 'subscription_payment_success' && at.billing_reason === 'renewal') {
+      const last = await one(env, "SELECT plan,cycle FROM payments WHERE email=? AND provider='lemon' AND kind='plan' ORDER BY at DESC LIMIT 1", email), us = await one(env, 'SELECT plan,plan_until FROM users WHERE email=?', email);
+      if (last && us && us.plan !== 'free') {
+        const ins = await run(env, "INSERT OR IGNORE INTO payments(id,ukey,kind,txid,provider,plan,cycle,amount,currency,email,payer,status,reviewed_by,at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'approved','lemon',?)", rid(), 'lemon:pay:' + d.id, 'plan', String(d.id), 'lemon', last.plan, last.cycle, (at.total || 0) / 100, String(at.currency || 'USD').toUpperCase(), 'platform', email, Date.now());
+        if (ins.meta && ins.meta.changes) await run(env, 'UPDATE users SET plan_until=? WHERE email=?', Math.max(Date.now(), us.plan_until || 0) + (last.cycle === 'yearly' ? 366 : 31) * 864e5, email);
+      }
+    } else if (name === 'subscription_expired' && await one(env, "SELECT 1 x FROM payments WHERE email=? AND provider='lemon' AND kind='plan'", email)) {
+      await run(env, "UPDATE users SET plan='free',plan_until=0 WHERE email=?", email);
+    }
     return json({ received: true });
   }
   // test mode only: set SANDBOX_BILLING=1 to let a signed-in Admin switch plans without paying. Never enable in production.
@@ -1250,7 +1451,7 @@ async function api(req, env, ctx, url) {
     const c = splitCommission(price), id = rid(6);
     await run(env, "INSERT INTO orders(id,item,mode,buyer,seller,gross,fee,net,settled,at,txid,provider,status) VALUES(?,?,?,?,?,?,?,?,0,?,?,?,'pending')", id, it.id, mode, u.email, it.email, c.gross, c.fee, c.net, Date.now(), tx, prov);
     await audit(env, u.ws, u.email, 'market.order', `${id} ${mode} ${it.id}`);
-    background(ctx, tg(env, `${brand}: marketplace order ${id}\n${u.email} wants to ${mode} "${it.name}" for ${c.gross} (fee ${c.fee})\nvia ${prov}, TxID ${tx}`));
+    eventCard(env, ctx, '🛒', 'MARKETPLACE ORDER', [['🆔', 'Order', id], ['📧', 'Buyer', u.email], ['🤖', 'Agent', it.name], ['🔁', 'Mode', mode], ['💰', 'Gross', `${c.gross} (fee ${c.fee})`], ['🏦', 'Method', prov], ['🧾', 'TxID', tx]], req);
     return json({ id, ...c, status: 'pending', message: 'Order received. The agent is added to your workspace as soon as the payment is confirmed.' });
   }
   if ((mm = p.match(/^\/api\/market\/orders\/([\w-]{3,40})\/(settle|reject)$/)) && m === 'POST') {
@@ -1269,11 +1470,11 @@ async function api(req, env, ctx, url) {
 
 // ---------- public pages: quote link, PDF, sitemap ----------
 const NON_LATIN = /[^\x20-\x7e\u09f3\n]/;
-function sharePage(brand, qt, owner) {
+function sharePage(brand, qt, owner, base) {
   const items = parse(qt.items, []), sub = subOf(items), taxAmt = +(qt.total - sub).toFixed(2), cur = qt.currency === 'BDT' ? '\u09f3' : '$', doc = qt.kind === 'invoice' ? 'Invoice' : 'Quotation';
   const fm = (n) => cur + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const rows = items.map((i) => `<tr><td>${esc(i.name)}</td><td class="n">${+i.qty}</td><td class="n">${fm(i.price)}</td><td class="n">${fm(i.qty * i.price)}</td></tr>`).join('');
-  const css = ':root{--bg:#f6f7fb;--card:#fff;--tx:#0b1020;--mu:#5b6478;--ac:#4f46e5;--ln:#e3e6ef;--ok:#047857;--bad:#b91c1c}@media(prefers-color-scheme:dark){:root{--bg:#070b18;--card:#0f1730;--tx:#f1f5f9;--mu:#94a3b8;--ac:#818cf8;--ln:#24305a;--ok:#34d399;--bad:#f87171}}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.6 system-ui,-apple-system,"Noto Sans Bengali","Hind Siliguri","Nirmala UI",sans-serif;padding:max(16px,env(safe-area-inset-top)) 16px 40px}main{max-width:720px;margin:auto}.card{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:20px;margin:14px 0}h1{margin:0 0 4px;font-size:26px}h2{font-size:17px;margin:0 0 10px}.mu{color:var(--mu);margin:2px 0}table{width:100%;border-collapse:collapse}th,td{padding:8px 6px;border-bottom:1px solid var(--ln);text-align:left}.n{text-align:right;white-space:nowrap}.tot{font-size:22px;font-weight:800;text-align:right;margin-top:12px}.chip{display:inline-block;padding:2px 10px;border-radius:99px;border:1px solid var(--ln);font-size:13px;color:var(--ac);font-weight:700;text-transform:uppercase}button,.btn{display:inline-block;background:var(--ac);color:#fff;border:0;border-radius:10px;padding:10px 16px;font:inherit;font-weight:700;cursor:pointer;text-decoration:none;margin:4px 6px 4px 0}.btn.alt,button.alt{background:transparent;color:var(--ac);border:1px solid var(--ac)}input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--ln);background:var(--bg);color:var(--tx);font:inherit;margin:6px 0}.ok{color:var(--ok)}.bad{color:var(--bad)}code{word-break:break-all;font-size:12px}@media print{body{background:#fff;color:#000}.noprint{display:none}.card{border-color:#ccc}}';
+  const css = ':root{--bg:#f6f7fb;--card:#fff;--tx:#0b1020;--mu:#5b6478;--ac:#4f46e5;--ln:#e3e6ef;--ok:#047857;--bad:#b91c1c}@media(prefers-color-scheme:dark){:root{--bg:#070b18;--card:#0f1730;--tx:#f1f5f9;--mu:#94a3b8;--ac:#818cf8;--ln:#24305a;--ok:#34d399;--bad:#f87171}}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.6 system-ui,-apple-system,"Noto Sans Bengali","Hind Siliguri","Nirmala UI",sans-serif;padding:max(16px,env(safe-area-inset-top)) 16px 40px}main{max-width:720px;margin:auto}.card{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:20px;margin:14px 0}h1{margin:0 0 4px;font-size:26px}h2{font-size:17px;margin:0 0 10px}.mu{color:var(--mu);margin:2px 0}table{width:100%;border-collapse:collapse}th,td{padding:8px 6px;border-bottom:1px solid var(--ln);text-align:left}.n{text-align:right;white-space:nowrap}.tot{font-size:22px;font-weight:800;text-align:right;margin-top:12px}.chip{display:inline-block;padding:2px 10px;border-radius:99px;border:1px solid var(--ln);font-size:13px;color:var(--ac);font-weight:700;text-transform:uppercase}button,.btn{display:inline-block;background:var(--ac);color:#fff;border:0;border-radius:10px;padding:10px 16px;font:inherit;font-weight:700;cursor:pointer;text-decoration:none;margin:4px 6px 4px 0}.btn.alt,button.alt{background:transparent;color:var(--ac);border:1px solid var(--ac)}input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--ln);background:var(--bg);color:var(--tx);font:inherit;margin:6px 0}.ok{color:var(--ok)}.bad{color:var(--bad)}code{word-break:break-all;font-size:12px}@media print{body{background:#fff;color:#000}.noprint{display:none}.card{border-color:#ccc}}.pbx{display:inline-block;padding:7px 14px;border:1px solid var(--ln);border-radius:10px;color:var(--mu);font-size:11px;letter-spacing:.16em;text-transform:uppercase;text-decoration:none}.pbx b{color:var(--ac);letter-spacing:.2em}.logo{display:block;max-height:52px;max-width:180px;margin:0 0 10px}';
   const js = "const ID=" + JSON.stringify(qt.id) + ",$=s=>document.querySelector(s),api=(p,o)=>fetch('/api/public/quotes/'+ID+'/'+p,o).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||'Request failed');return j}),msg=(t,bad)=>{const e=$('#msg');e.textContent=t;e.className=bad?'bad':'ok'},el=(t,x,c)=>{const e=document.createElement(t);if(x)e.textContent=x;if(c)e.className=c;return e};"
     + "const post=(p,b)=>api(p,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)});"
     + "function proof(box,prov,label){const i=el('input');i.placeholder=label;const b=el('button','I have paid');b.onclick=async()=>{try{const nm=($('#nm')||{}).value||'';const r=await post('proof',{provider:prov,txid:i.value,name:nm});msg(r.message)}catch(e){msg(e.message,1)}};box.append(i,b)}"
@@ -1284,9 +1485,9 @@ function sharePage(brand, qt, owner) {
     + "if(!box.children.length)box.append(el('p','The seller has not added payment methods yet. Please contact them directly.','mu'))}"
     + "$('#acc')&&($('#acc').onclick=async()=>{try{const r=await post('accept',{name:$('#nm').value});$('#st').textContent=r.status;msg('Accepted. Thank you!');$('#acc').hidden=true}catch(e){msg(e.message,1)}});"
     + "pay().catch(e=>msg(e.message,1));if(location.search.indexOf('print=1')>-1)setTimeout(()=>print(),400);";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><title>${esc(qt.title)} \u00b7 ${esc(brand)}</title><link rel="icon" href="/icon.svg"><style>${css}</style></head><body><main><div class="card"><span class="chip" id="st">${esc(qt.status)}</span><h1>${esc(doc)}: ${esc(qt.title)}</h1><p class="mu">From ${esc(owner.company || owner.name)}${qt.client ? ' \u00b7 For ' + esc(qt.client) : ''}</p><p class="mu">${new Date(qt.created).toISOString().slice(0, 10)} \u00b7 Ref ${esc(qt.id)}</p></div>`
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><title>${esc(qt.title)} \u00b7 ${esc(brand)}</title><link rel="icon" href="/icon.svg"><style>${css}</style></head><body><main><div class="card">${/^https:\/\//.test(owner.logo || '') ? `<img class="logo" src="${esc(owner.logo)}" alt="${esc(owner.company || owner.name)}" referrerpolicy="no-referrer">` : ''}<span class="chip" id="st">${esc(qt.status)}</span><h1>${esc(doc)}: ${esc(qt.title)}</h1><p class="mu">From ${esc(owner.company || owner.name)}${qt.client ? ' \u00b7 For ' + esc(qt.client) : ''}</p><p class="mu">${new Date(qt.created).toISOString().slice(0, 10)} \u00b7 Ref ${esc(qt.id)}${qt.due_at ? ' \u00b7 Due ' + new Date(qt.due_at).toISOString().slice(0, 10) : ''}</p></div>`
     + `<div class="card"><table><tr><th>Item</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Amount</th></tr>${rows}</table>${qt.tax ? `<p class="mu n">Subtotal ${fm(sub)}<br>Tax ${+qt.tax}% ${fm(taxAmt)}</p>` : ''}<div class="tot">${fm(qt.total)}</div>${qt.notes ? `<p class="mu" style="white-space:pre-wrap">${esc(qt.notes)}</p>` : ''}</div>`
-    + `<div class="card noprint"><h2>Your name</h2><input id="nm" maxlength="80" placeholder="Full name" autocomplete="name">${qt.status === 'sent' ? '<button id="acc">Accept this ' + esc(doc.toLowerCase()) + '</button>' : ''}<a class="btn alt" href="/s/${esc(qt.id)}/pdf">Download PDF</a><button class="alt" onclick="print()">Print</button><p id="msg" class="mu" role="status"></p></div><div class="card noprint"><h2>Pay</h2><div id="pay"><p class="mu">Loading payment options\u2026</p></div></div><p class="mu" style="text-align:center">Powered by ${esc(brand)}</p></main><script>${js}</script></body></html>`;
+    + `<div class="card noprint"><h2>Your name</h2><input id="nm" maxlength="80" placeholder="Full name" autocomplete="name">${qt.status === 'sent' ? '<button id="acc">Accept this ' + esc(doc.toLowerCase()) + '</button>' : ''}<a class="btn alt" href="/s/${esc(qt.id)}/pdf">Download PDF</a><button class="alt" onclick="print()">Print</button><p id="msg" class="mu" role="status"></p></div><div class="card noprint"><h2>Pay</h2><div id="pay"><p class="mu">Loading payment options\u2026</p></div></div><div style="text-align:center;margin:20px 0 6px"><a class="pbx" href="https://www.google.com/search?q=${encodeURIComponent(brand)}" target="_blank" rel="noopener noreferrer">Powered by <b>${esc(brand)}</b></a><p class="mu noprint" style="font-size:13px"><a href="${esc(base || '')}/#ref=${esc(qt.id)}" style="color:var(--ac)">Send your own quotation in 60 seconds, get paid \u2192</a></p></div></main><script>${js}</script></body></html>`;
 }
 const notFoundPage = (brand) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not found \u00b7 ${esc(brand)}</title><body style="font:16px system-ui;text-align:center;padding:60px"><h1>This link is not available</h1><p>It may have been removed by the sender.</p></body>`;
 const html = (body, status = 200) => new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer' } });
@@ -1296,6 +1497,8 @@ async function ensureTail(env) {
   if (TAIL_READY) return; // per-isolate flag
   const cols = ((await env.DB.prepare("SELECT name FROM pragma_table_info('orders')").all()).results || []).map((r) => r.name);
   for (const [c, d] of [['txid', "TEXT DEFAULT ''"], ['provider', "TEXT DEFAULT ''"], ['status', "TEXT DEFAULT 'pending'"]]) if (!cols.includes(c)) await env.DB.prepare(`ALTER TABLE orders ADD COLUMN ${c} ${d}`).run();
+  const qc = ((await env.DB.prepare("SELECT name FROM pragma_table_info('quotes')").all()).results || []).map((r) => r.name);
+  for (const [c, d] of [['due_at', 'INTEGER DEFAULT 0'], ['remind_n', 'INTEGER DEFAULT 0'], ['remind_at', 'INTEGER DEFAULT 0'], ['viewed_at', 'INTEGER DEFAULT 0']]) if (!qc.includes(c)) await env.DB.prepare(`ALTER TABLE quotes ADD COLUMN ${c} ${d}`).run();
   TAIL_READY = true;
 }
 
@@ -1305,11 +1508,11 @@ async function pages(req, env, ctx, url) {
   if ((mm = p.match(/^\/s\/([\w-]{3,40})(\/pdf)?$/)) && (req.method === 'GET' || req.method === 'HEAD')) {
     const qt = await one(env, 'SELECT * FROM quotes WHERE id=?', mm[1]); if (!qt) return html(notFoundPage(brand), 404);
     const owner = await one(env, 'SELECT * FROM users WHERE email=?', qt.owner) || { name: '', company: '' };
-    if (!mm[2]) { background(ctx, run(env, 'UPDATE quotes SET views=views+1 WHERE id=?', qt.id)); return html(sharePage(brand, qt, owner)); }
+    if (!mm[2]) { if (req.method === 'GET' && !BOT_UA.test(req.headers.get('user-agent') || '') && !url.searchParams.has('print')) background(ctx, trackView(env, ctx, qt, owner, base, brand)); return html(sharePage(brand, qt, owner, base)); }
     // PDF text is Helvetica only; Bengali or other scripts would turn into "?", so those go to the print page (the browser shapes the text correctly)
     const texts = [qt.title, qt.client, qt.notes, owner.company, owner.name, ...parse(qt.items, []).map((i) => i.name)].map((x) => String(x || ''));
     if (texts.some((s) => NON_LATIN.test(s))) return new Response(null, { status: 302, headers: { location: `/s/${qt.id}?print=1`, 'cache-control': 'no-store' } });
-    return new Response(quotePdf(brand, qt, owner), { headers: { 'content-type': 'application/pdf', 'content-disposition': `inline; filename="${qt.kind}-${qt.id}.pdf"`, 'cache-control': 'no-store' } });
+    return new Response(quotePdf(brand, qt, owner, base), { headers: { 'content-type': 'application/pdf', 'content-disposition': `inline; filename="${qt.kind}-${qt.id}.pdf"`, 'cache-control': 'no-store' } });
   }
   if (p === '/sitemap.xml') return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${esc(base)}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>`, { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
   if (p === '/robots.txt') return new Response(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /s/\nSitemap: ${base}/sitemap.xml\n`, { headers: { 'content-type': 'text/plain; charset=utf-8' } });
@@ -1327,12 +1530,16 @@ function cors(env, req, res) {
 }
 
 export default {
+  // optional cron trigger (Workers): sends overdue reminders even when nobody visits. Pages ignores this; traffic triggers the same job hourly.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil((async () => { await ensureSchema(env); await ensureTail(env); await sweepOverdue(env, baseOf(env, { origin: '' }), brandOf(env)); })().catch(() => {}));
+  },
   async fetch(req, env, ctx) {
     const url = new URL(req.url), p = url.pathname;
     try {
       if (req.method === 'OPTIONS' && p.startsWith('/api/')) return cors(env, req, new Response(null, { status: 204 }));
       const isApi = p.startsWith('/api/');
-      if (isApi || p.startsWith('/s/')) { await ensureSchema(env); await ensureTail(env); }
+      if (isApi || p.startsWith('/s/')) { await ensureSchema(env); await ensureTail(env); background(ctx, maybeSweep(env, baseOf(env, url), brandOf(env))); }
       if (isApi) return cors(env, req, await api(req, env, ctx, url));
       const pg = await pages(req, env, ctx, url); if (pg) return pg;
       if (!env.ASSETS) return html('<h1>Static assets are not bound</h1>', 500);
