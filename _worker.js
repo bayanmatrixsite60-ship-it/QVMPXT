@@ -47,7 +47,7 @@ const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart
 const rid = (n = 6) => hex(crypto.getRandomValues(new Uint8Array(n)));
 const sha = async (s) => hex(await crypto.subtle.digest('SHA-256', enc.encode(s)));
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } });
 const fail = (status, error, extra) => json({ error, ...extra }, status);
 const httpErr = (status, message, extra) => Object.assign(new Error(message), { status, extra });
 const safeEq = (a, b) => { a = String(a); b = String(b); if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
@@ -666,12 +666,13 @@ async function translateStrings(env, lang, items) {
 
 // ---------- PWA assets ----------
 const SW_SOURCE = (brand) => `// ${brand} service worker
-const CACHE='qvmpxt-v5';
+const CACHE='qvmpxt-v6';
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['/','/manifest.webmanifest','/icon.svg'])).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{
  const r=e.request,u=new URL(r.url);
  if(r.method!=='GET'||u.origin!==location.origin||u.pathname.startsWith('/api/')||u.pathname.startsWith('/s/')||u.pathname==='/sw.js')return;
+ if(r.mode==='navigate'&&u.pathname!=='/')return;
  const key=r.mode==='navigate'?'/':r;
  const net=fetch(r).then(x=>{if(x.ok){const c=x.clone();caches.open(CACHE).then(h=>h.put(key,c))}return x});
  e.respondWith(caches.match(key).then(hit=>{if(hit){e.waitUntil(net.catch(()=>{}));return hit}return net}));
@@ -1490,7 +1491,7 @@ function sharePage(brand, qt, owner, base) {
     + `<div class="card noprint"><h2>Your name</h2><input id="nm" maxlength="80" placeholder="Full name" autocomplete="name">${qt.status === 'sent' ? '<button id="acc">Accept this ' + esc(doc.toLowerCase()) + '</button>' : ''}<a class="btn alt" href="/s/${esc(qt.id)}/pdf">Download PDF</a><button class="alt" onclick="print()">Print</button><p id="msg" class="mu" role="status"></p></div><div class="card noprint"><h2>Pay</h2><div id="pay"><p class="mu">Loading payment options\u2026</p></div></div><div style="text-align:center;margin:20px 0 6px"><a class="pbx" href="https://www.google.com/search?q=${encodeURIComponent(brand)}" target="_blank" rel="noopener noreferrer">Powered by <b>${esc(brand)}</b></a><p class="mu noprint" style="font-size:13px"><a href="${esc(base || '')}/#ref=${esc(qt.id)}" style="color:var(--ac)">Send your own quotation in 60 seconds, get paid \u2192</a></p></div></main><script>${js}</script></body></html>`;
 }
 const notFoundPage = (brand) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not found \u00b7 ${esc(brand)}</title><body style="font:16px system-ui;text-align:center;padding:60px"><h1>This link is not available</h1><p>It may have been removed by the sender.</p></body>`;
-const html = (body, status = 200) => new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer' } });
+const html = (body, status = 200) => new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'x-robots-tag': 'noindex, nofollow' } });
 
 let TAIL_READY = false;
 async function ensureTail(env) {
@@ -1514,12 +1515,315 @@ async function pages(req, env, ctx, url) {
     if (texts.some((s) => NON_LATIN.test(s))) return new Response(null, { status: 302, headers: { location: `/s/${qt.id}?print=1`, 'cache-control': 'no-store' } });
     return new Response(quotePdf(brand, qt, owner, base), { headers: { 'content-type': 'application/pdf', 'content-disposition': `inline; filename="${qt.kind}-${qt.id}.pdf"`, 'cache-control': 'no-store' } });
   }
-  if (p === '/sitemap.xml') return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${esc(base)}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>`, { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
-  if (p === '/robots.txt') return new Response(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /s/\nSitemap: ${base}/sitemap.xml\n`, { headers: { 'content-type': 'text/plain; charset=utf-8' } });
   if (p === '/sw.js') return new Response(SW_SOURCE(brand), { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache', 'service-worker-allowed': '/' } });
   if (p === '/manifest.webmanifest') return new Response(MANIFEST(brand), { headers: { 'content-type': 'application/manifest+json; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
   if (p === '/icon.svg') return new Response(ICON_SVG, { headers: { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=86400' } });
   return null;
+}
+
+// ---------- SEO: server-rendered, crawlable public pages ----------
+// The app itself is a single-page app with #/hash routes. Google ignores everything after "#", so every public page
+// below is also served here as real HTML at its own clean URL, with its own title, description, canonical link, structured
+// data and internal links. /sitemap.xml lists all of them. Bump SITE_UPDATED when you change page content.
+const SITE_UPDATED = '2026-11-10', LEGAL_UPDATED = '2026-11-09';
+const FOUNDER = 'M Maruf Chowdhury', FOUNDER_ROLE = 'Founder & Chief Architect, QVMPXT', FOUNDER_COUNTRY = 'Bangladesh';
+const FOUNDER_PHONE = '+8801347272307', FOUNDER_WA = '8801347272307', FOUNDER_EMAIL = 'marufchowdhury579@gmail.com';
+const SEO_DESC = 'QVMPXT: send a quotation in 60 seconds and get paid. AI agents, quote links, compliance audits and an agent marketplace. Pay by card, Bitcoin or bKash / Nagad / Rocket.';
+const SEO_BN = 'QVMPXT: ৬০ সেকেন্ডে কোটেশন পাঠান, পেমেন্ট নিন। এআই এজেন্ট, কোটেশন লিংক, কমপ্লায়েন্স অডিট ও এজেন্ট মার্কেটপ্লেস। কার্ড, বিটকয়েন এবং বিকাশ / নগদ / রকেটে পেমেন্ট গ্রহণ করুন।';
+const NAV_LINKS = [['/', 'Home'], ['/meet-maruf', 'Meet Maruf'], ['/products', 'Products'], ['/solutions', 'Solutions'], ['/pricing', 'Pricing'], ['/contact', 'Contact']];
+const PLAN_FEATURES = {
+  starter: ['Everything in Free', '300 agent runs / month', 'Priority run queue', '5 team seats with role-based access', '3 API keys', 'Webhook for run events'],
+  growth: ['Everything in Starter', '2,000 agent runs / month', '15 team seats with role-based access', '10 API keys'],
+  enterprise: ['Everything in Growth', '20,000 agent runs / month', 'Unlimited team seats with role-based access', 'Unlimited API keys'],
+};
+// old or guessed URLs that should 301 to the real page
+const SEO_ALIASES = { maruf: 'meet-maruf', founder: 'meet-maruf', about: 'meet-maruf', 'about-us': 'meet-maruf', 'meet-the-founder': 'meet-maruf', agents: 'ai-agents', agent: 'ai-agents', market: 'marketplace', saas: 'quotations', quotes: 'quotations', quote: 'quotations', pay: 'payments', billing: 'pricing', plans: 'pricing', audit: 'compliance-audits', audits: 'compliance-audits', iam: 'security', stats: 'developers', api: 'developers', dev: 'developers', 'privacy-policy': 'privacy', 'terms-of-service': 'terms', 'refund-policy': 'refund', 'contact-us': 'contact' };
+const LEGAL_PAGES = {"privacy":["Privacy Policy",[["Who we are","QVMPXT is operated by M Maruf Chowdhury, Founder & Chief Architect. This policy explains what we collect, why, and the choices you have."],["What we collect","Account details you give us (name, email, phone number), your sign-in method (password, Google, GitHub or passkey), your plan and billing records (plan, amount, payment method and transaction ID), and the content you create (quotations, agents, runs and notes). Passwords are never stored in readable form: the server keeps only a salted PBKDF2-SHA256 hash. Passkeys store only a public key."],["Security and sign-in alerts","When you sign up or sign in, the founder receives a private security alert containing your name, email, phone number, browser and device type, and an approximate location (country and city) taken from the network request. We use this only to run, protect and support the service. It never includes your password or session token."],["Encrypted vault","With end-to-end encryption on, vault notes and audit input are encrypted in your browser with AES-256-GCM. The key comes from your passphrase and never leaves your browser. We store only ciphertext, so we cannot read it and cannot recover a forgotten passphrase."],["Who processes data for us","Cloudflare (hosting, database and bot protection), Stripe (card payments), Google and GitHub (sign-in), and Telegram (private founder alerts). Bitcoin, bKash, Nagad and Rocket payments are confirmed by us from the transaction ID you submit. We do not sell personal data and we do not share it for advertising."],["Quotation recipients","When you share a quotation link, the recipient sees its contents and the QVMPXT branding. We count views on the link so you can follow up. We do not give the recipient your other data."],["Your rights","You can edit your profile in Settings, export your workspace at any time, and ask us to delete your account and data through Message to the Founder (available when signed in). We keep payment records for as long as tax and accounting rules require."],["Retention and changes","We keep account data while your account is open and delete it after a deletion request, except records we must keep by law. If this policy changes in a material way we will show a notice in the app."]]],"terms":["Terms of Service",[["Acceptance","By creating an account or using QVMPXT you agree to these terms, the Privacy Policy and the Refund Policy. If you use QVMPXT for a business, you confirm you can bind that business."],["Your account","Give accurate details and keep your sign-in methods secure. You are responsible for activity on your account. AI features may require a verified email address, and use is limited per plan to protect the service."],["Acceptable use","Use the platform lawfully. Do not send unlawful, deceptive or abusive content, attack or overload the service, resell access without permission, or use it to harm others. We may suspend accounts that break these rules."],["Your content","You own your data and content. You give us only the permission needed to store, process and display it to run the service and to show quotation links you choose to share."],["Quotations and payments between you and your clients","QVMPXT provides the tool to create, share and track quotations. Any agreement or payment between you and your client is between the two of you. QVMPXT is not a party to it and does not guarantee payment."],["Plans and billing","Paid plans renew monthly or yearly until cancelled. Prices are in US dollars, or in Bangladeshi taka where bKash, Nagad or Rocket is used. Marketplace sales carry a 15% platform commission. Cancelling stops the next renewal; access continues to the end of the paid period."],["AI output","AI features can make mistakes. Check results before relying on them, especially for financial, legal or compliance decisions. QVMPXT does not provide legal, tax or financial advice."],["Availability and liability","We work to keep the service available but do not promise uninterrupted access. To the extent the law allows, QVMPXT is not liable for indirect or consequential losses, and our total liability is limited to the amount you paid in the three months before the claim."],["Changes and contact","We may update these terms and will show a notice for material changes. Questions can be sent through Message to the Founder when signed in."]]],"refund":["Refund Policy",[["Subscriptions","If you are not satisfied, ask for a refund of your first payment for a plan within 7 days of paying. Renewals are refundable within 48 hours of the renewal charge if the plan was not used after it. After that, cancel any time and keep access until the period ends."],["Usage","Refunds are not given for AI runs and tokens already used. If a technical fault on our side stopped a paid feature from working, we will fix it, extend your period or refund the affected time."],["How refunds are paid","Card payments (Stripe) go back to the original card. bKash, Nagad and Rocket payments go back to the same wallet number in taka. Bitcoin refunds are sent in BTC for the amount received, less network fees, to an address you give us. Banks and wallets may need several business days to show the money."],["Duplicate or wrong charges","If you were charged twice or the wrong amount, tell us with your transaction ID and we will correct it in full."],["Marketplace and quotation payments","Marketplace purchases and rentals are refunded by the seller under the listing terms; the 15% commission is returned with any full refund. Payments clients make to you for a quotation are between you and your client, so refunds for those are handled by you."],["How to ask","Open Message to the Founder (menu, when signed in) and include your account email, the transaction ID and the reason. We reply after verifying the payment."]]]};
+const legalSections = (k) => LEGAL_PAGES[k][1].map(([h, p]) => ({ h, p }));
+
+const SEO_PAGES = {
+  'meet-maruf': {
+    app: 'maruf', kind: 'profile', pri: '0.9', cf: 'monthly', lm: SITE_UPDATED, label: 'Meet Maruf',
+    title: 'Meet Maruf | M Maruf Chowdhury, Founder of QVMPXT',
+    desc: 'Meet M Maruf Chowdhury (Maruf), Founder & Chief Architect of QVMPXT from Bangladesh. His vision, mission, skills and how to contact him.',
+    eyebrow: 'Meet the founder', h1: FOUNDER + ': Founder & Chief Architect of QVMPXT',
+    lead: 'Building a sovereign AI and payments ecosystem for people everywhere: practical tools that help anyone quote, automate and get paid.',
+    bn: 'এম মারুফ চৌধুরী (M Maruf Chowdhury) বাংলাদেশের উদ্যোক্তা এবং QVMPXT-এর প্রতিষ্ঠাতা ও চিফ আর্কিটেক্ট। তিনি এমন একটি সহজ ও নিরাপদ প্ল্যাটফর্ম তৈরি করছেন যেখানে যে কেউ কোটেশন পাঠাতে, এআই অটোমেশন চালাতে এবং পেমেন্ট নিতে পারে।',
+    sections: [
+      { h: 'Skills & strengths', p: 'What Maruf brings to building QVMPXT.', cards: [
+        ['Product Thinking: from real-world observation', 'Turns everyday problems people face into simple, usable products.'],
+        ['Quick Learner: with hands-on execution', 'Learns by building, ships fast and improves from real feedback.'],
+        ['Natural Networker & Public Speaker', 'Connects easily with people and explains ideas in plain, confident words.'],
+        ['Founder Mindset: early-stage builder', 'Owns the whole journey from first idea to a live product.'],
+        ['AI Workflow Architect', 'Designs agent and automation workflows that save real time.'],
+        ['Sovereign System Strategist', 'Plans systems that keep data, control and trust with their owners.'],
+      ] },
+      { h: 'Vision', p: 'A world where anyone, anywhere, can offer their work, win trust and get paid without needing a big company or a perfect bank account behind them.' },
+      { h: 'Mission', p: 'Put advanced AI agents, instant global payments and secure automation into one simple, private, future-proof platform that stays easy for everyday people.' },
+      { quote: ["Age doesn't limit ideas. Action does. Let's connect.", FOUNDER] },
+      { h: 'About QVMPXT', p: 'QVMPXT lets freelancers, small businesses and teams send a branded quotation link in 60 seconds, run AI agents, audit records for compliance and get paid by card, Bitcoin or bKash / Nagad / Rocket.', links: [['Explore products', '/products'], ['See pricing', '/pricing']] },
+      { h: "Let's connect", p: 'Questions, ideas or partnership? Message directly.', links: [['Chat on WhatsApp', 'https://wa.me/' + FOUNDER_WA, 1], ['Contact page', '/contact']] },
+    ],
+  },
+  contact: {
+    app: 'contact', kind: 'contact', pri: '0.7', cf: 'yearly', lm: SITE_UPDATED, label: 'Contact',
+    title: 'Contact QVMPXT | WhatsApp, Phone & Email',
+    desc: 'Contact QVMPXT and its founder Maruf by WhatsApp, phone or email. We read every message.',
+    eyebrow: 'Contact', h1: 'Contact us', lead: 'We read every message. WhatsApp is the fastest way to reach Maruf.',
+    sections: [
+      { h: 'Ways to reach us', cards: [
+        ['WhatsApp', 'The fastest way to reach Maruf: ' + FOUNDER_PHONE, 'https://wa.me/' + FOUNDER_WA],
+        ['Phone', FOUNDER_PHONE, 'tel:' + FOUNDER_PHONE],
+        ['Email', FOUNDER_EMAIL, 'mailto:' + FOUNDER_EMAIL],
+        ['Message to the founder', 'Signed-in users can send a note from inside the app (menu > Message to the Founder).', '/#/contact'],
+      ] },
+      { h: 'Before you write', paras: ['For a refund, include your account email, the transaction ID and the reason. See our Refund Policy for the timelines.', 'For a business partnership, tell us a little about your company and what you have in mind.'], links: [['Refund Policy', '/refund'], ['Meet Maruf', '/meet-maruf']] },
+    ],
+  },
+  products: {
+    app: 'products', kind: 'page', pri: '0.8', cf: 'monthly', lm: SITE_UPDATED, label: 'Products',
+    title: 'Products & Services | QVMPXT',
+    desc: 'The building blocks of QVMPXT: AI agents, agent marketplace, quote links, payments and invoices, compliance audits, secure vault and a developer console.',
+    eyebrow: 'Products', h1: 'Products & Services', lead: 'The building blocks of the QVMPXT ecosystem.',
+    sections: [{ cards: [
+      ['AI Agents', 'Voice commands, document OCR, a visual flow builder and a live research crawler.', '/ai-agents'],
+      ['Agent Marketplace', 'List, rent or buy AI workflows. A 15% platform commission is routed automatically.', '/marketplace'],
+      ['Quote Links', 'Branded, shareable quotes. Every view shows Powered by QVMPXT.', '/quotations'],
+      ['Payments & Invoices', 'Stripe card, Bitcoin (including Lightning) and BDT mobile money with PDF invoices.', '/payments'],
+      ['Compliance Audits', 'Rule checks plus anomaly detection with a readable report.', '/compliance-audits'],
+      ['Vault & Access Control', 'Client-side AES-256-GCM vault, MFA, passkeys and role-based permissions.', '/security'],
+      ['Developer Console', 'API keys, webhooks, system status and an activity logger.', '/developers'],
+      ['Storage & Compute', 'See your workloads, quotas and the storage behind your workspace.'],
+    ] }],
+  },
+  solutions: {
+    app: 'solutions', kind: 'page', pri: '0.8', cf: 'monthly', lm: SITE_UPDATED, label: 'Solutions',
+    title: 'Solutions for Freelancers, Agencies & Teams | QVMPXT',
+    desc: 'QVMPXT solutions for freelancers, small businesses, agencies, compliance-minded teams, developers and builders who sell AI workflows.',
+    eyebrow: 'Solutions', h1: 'Solutions', lead: 'Pick the situation that sounds like yours.',
+    sections: [{ cards: [
+      ['Freelancers & creators', 'Send a professional quote link in 60 seconds and get paid in the currency your client prefers.', '/quotations'],
+      ['Small businesses', 'Take card, Bitcoin or mobile-money payments and keep PDF invoices in one place.', '/payments'],
+      ['Agencies & teams', 'Share agents and quotes across a team with Admin, Editor and Viewer roles.', '/security'],
+      ['Compliance-minded work', 'Scan content against rules and keep an audit trail of important actions.', '/compliance-audits'],
+      ['Developers', 'Create API keys, test signed webhooks and connect QVMPXT to your own tools.', '/developers'],
+      ['Builders who sell workflows', 'List an AI workflow on the marketplace and earn when others rent or buy it.', '/marketplace'],
+    ] }],
+  },
+  pricing: {
+    app: 'pay', kind: 'pricing', pri: '0.9', cf: 'monthly', lm: SITE_UPDATED, label: 'Pricing',
+    title: 'Pricing: Free, Starter, Growth & Enterprise | QVMPXT',
+    desc: 'QVMPXT plans from free to Enterprise. Starter $9, Growth $29, Enterprise $99 per month. Pay by card, Bitcoin or bKash / Nagad / Rocket (BDT).',
+    eyebrow: 'Pricing', h1: 'Simple pricing that grows with you', lead: 'Start free. Upgrade only when you grow. Pay in USD by card, in Bitcoin (including Lightning) or in Bangladeshi taka with bKash, Nagad or Rocket. Yearly billing saves about two months.',
+    sections: 'pricing',
+  },
+  'ai-agents': {
+    app: 'agents', kind: 'page', pri: '0.8', cf: 'monthly', lm: SITE_UPDATED, label: 'AI Agents',
+    title: 'AI Agents with Voice, OCR & Automation | QVMPXT',
+    desc: 'Build and run AI agents by typing or by voice. Document OCR, live research, a visual flow builder, memory and tools that create quotes, invoices and audits.',
+    eyebrow: 'AI Agents', h1: 'AI agents that do real work', lead: 'Describe a task once and let an agent run it again and again, from your keyboard, your voice or the API.',
+    sections: [
+      { h: 'What agents can do', list: [
+        'Create a quotation or an invoice from a plain-language job description and return a shareable link plus a PDF.',
+        'Audit pasted records for duplicates, missing approvals and anomalies, then explain the findings in plain language.',
+        'Remember client preferences, rates and terms between runs (agent memory).',
+        'Send a signed notification to your own webhook endpoint.',
+        'Analyze documents with OCR, run live research and chain steps on a visual flow builder.',
+      ] },
+      { h: 'Use your own model key', p: 'Managed runs are powered by Claude. You can also connect your own OpenAI, Claude or DeepSeek API key, and your key runs do not use up the managed quota.' },
+      { h: 'Plans and limits', p: 'Free includes 50 managed runs a month. Starter has 300, Growth 2,000 and Enterprise 20,000. Daily fair-use limits protect the service.', links: [['See pricing', '/pricing'], ['Open AI Agents', '/#/agents', 1]] },
+      { h: 'Related', links: [['Agent marketplace', '/marketplace'], ['Developer API', '/developers'], ['Quotations', '/quotations']] },
+    ],
+  },
+  marketplace: {
+    app: 'market', kind: 'page', pri: '0.7', cf: 'monthly', lm: SITE_UPDATED, label: 'Marketplace',
+    title: 'AI Agent Marketplace: List, Rent or Buy | QVMPXT',
+    desc: 'List, rent or buy ready-made AI workflows on the QVMPXT agent marketplace. A 15% platform commission is split out automatically.',
+    eyebrow: 'Marketplace', h1: 'The AI agent marketplace', lead: 'Turn a workflow that works into something others can rent or buy.',
+    sections: [
+      { h: 'How it works', list: ['Sellers list an agent with a buy price, a monthly rent price, or both.', 'Buyers pay by Bitcoin, Lightning, bKash, Nagad or Rocket and submit the transaction ID.', 'Once the payment is confirmed, the agent is delivered straight into the buyer\u2019s workspace. Rentals run for 31 days.', 'The platform keeps a 15% commission and the seller receives the rest.'] },
+      { h: 'Good to know', p: 'Verified email is required to list or order. Each seller can list up to 20 agents. Refunds follow the listing terms and the 15% commission is returned with any full refund.', links: [['Refund Policy', '/refund'], ['Open the marketplace', '/#/market', 1]] },
+      { h: 'Related', links: [['AI agents', '/ai-agents'], ['Payments', '/payments']] },
+    ],
+  },
+  quotations: {
+    app: 'saas', kind: 'page', pri: '0.9', cf: 'monthly', lm: SITE_UPDATED, label: 'Quotations',
+    title: 'Send a Quotation in 60 Seconds, Get Paid | QVMPXT',
+    desc: 'Create a branded quotation or invoice link in 60 seconds. Clients view, accept and pay on any device. Track views, get reminders and download a PDF.',
+    eyebrow: 'Quote links', h1: 'Send a quotation in 60 seconds, get paid', lead: 'No heavy setup and nothing to install. Your client opens a link on any device, no account needed.',
+    sections: [
+      { h: 'From idea to paid in three steps', cards: [
+        ['1. Create', 'Describe the work or let an AI agent draft your quote and documents.'],
+        ['2. Share', 'Send a branded quote link. Your client opens it on any device.'],
+        ['3. Get paid', 'Receive payment in the currency that suits your client, then track it in your history and invoices.'],
+      ] },
+      { h: 'What you get', list: [
+        'Itemized quotes and invoices in USD or BDT, with tax and your logo.',
+        'A shareable link and a downloadable PDF for every document.',
+        'View tracking, so you know when your client opened it.',
+        'One-tap acceptance by name, then payment by card, Bitcoin or mobile money.',
+        'Automatic email reminders for overdue quotes and invoices (up to three).',
+      ], links: [['Payments', '/payments'], ['Pricing', '/pricing'], ['Make a quote', '/#/saas', 1]] },
+    ],
+  },
+  payments: {
+    app: 'pay', kind: 'page', pri: '0.8', cf: 'monthly', lm: SITE_UPDATED, label: 'Payments',
+    title: 'Payments: Card, Bitcoin, bKash, Nagad & Rocket | QVMPXT',
+    desc: 'Get paid by card (Stripe), Bitcoin including Lightning, or bKash, Nagad and Rocket in Bangladeshi taka. PDF invoices for every plan.',
+    eyebrow: 'Payments', h1: 'Local and global payments together', lead: 'bKash, Nagad and Rocket sit beside card and Bitcoin, so more of your clients can actually pay.',
+    sections: [
+      { h: 'Payment methods', cards: [
+        ['Card (Stripe)', 'Pay a plan or a quotation with a credit or debit card.'],
+        ['Bitcoin and Lightning', 'Pay on-chain or over the Lightning Network.'],
+        ['bKash, Nagad and Rocket', 'Pay in Bangladeshi taka and submit the transaction ID for confirmation.'],
+      ] },
+      { h: 'Invoices and proof of payment', p: 'Every quotation and invoice has a PDF. When a client pays with a manual method, the seller reviews the transaction ID and marks the document as paid.', links: [['Quotations', '/quotations'], ['Pricing', '/pricing'], ['Refund Policy', '/refund']] },
+    ],
+  },
+  'compliance-audits': {
+    app: 'audit', kind: 'page', pri: '0.7', cf: 'monthly', lm: SITE_UPDATED, label: 'Compliance Audits',
+    title: 'Compliance Audits & Anomaly Detection | QVMPXT',
+    desc: 'Scan records for duplicate ids, missing approvals, weekend postings and statistical outliers. Get a risk score and a tamper-evident audit trail.',
+    eyebrow: 'Compliance', h1: 'Compliance audits and anomaly detection', lead: 'Paste your records, get a readable report, highest risk first.',
+    sections: [
+      { h: 'What is checked', list: ['Duplicate ids.', 'Amounts above 1,000 without an approver, and above 10,000 without approval.', 'Entries posted on a weekend.', 'Statistical outliers compared with the average of the dataset.'] },
+      { h: 'A trail you can trust', p: 'Sensitive actions are written to an append-only, hash-chained audit log. Rows cannot be edited or deleted, and any tampering breaks the chain. Audit input can also be end-to-end encrypted in your browser.', links: [['Security', '/security'], ['Open audits', '/#/audit', 1]] },
+    ],
+  },
+  security: {
+    app: 'iam', kind: 'page', pri: '0.7', cf: 'monthly', lm: SITE_UPDATED, label: 'Security',
+    title: 'Security: Vault, MFA, Passkeys & Roles | QVMPXT',
+    desc: 'AES-256-GCM encrypted vault, authenticator MFA, passkeys, role-based access and an immutable audit log. Your keys stay in your browser.',
+    eyebrow: 'Security', h1: 'Privacy first, by design', lead: 'Built for real working life, so security does not need a security team.',
+    sections: [
+      { h: 'Protections', cards: [
+        ['Encrypted vault', 'Notes are encrypted in your browser with AES-256-GCM. The key comes from your passphrase and never leaves your device. The server stores ciphertext only.'],
+        ['MFA and passkeys', 'Authenticator-app codes with one-time recovery codes, plus passkeys (WebAuthn) for passwordless sign-in.'],
+        ['Role-based access', 'Admin, Editor and Viewer roles are enforced on the server for every request.'],
+        ['Immutable audit log', 'Append-only and hash-chained, so changes to history can be detected.'],
+        ['Account safety', 'Passwords are stored only as salted PBKDF2-SHA256 hashes. Sessions can be revoked on all devices.'],
+        ['Bot protection', 'Cloudflare Turnstile guards AI runs against abuse.'],
+      ] },
+      { h: 'Read more', links: [['Privacy Policy', '/privacy'], ['Terms of Service', '/terms'], ['Compliance audits', '/compliance-audits']] },
+    ],
+  },
+  developers: {
+    app: 'stats', kind: 'page', pri: '0.6', cf: 'monthly', lm: SITE_UPDATED, label: 'Developers',
+    title: 'Developer API, Webhooks & API Keys | QVMPXT',
+    desc: 'Create API keys, run agents over HTTP and receive HMAC-signed webhooks for quotes and agent events. Connect QVMPXT to your own tools.',
+    eyebrow: 'Developers', h1: 'Connect QVMPXT to your own tools', lead: 'API keys, signed webhooks and a system status endpoint.',
+    sections: [
+      { h: 'API keys', p: 'Create keys in the developer console. A key starts with qvm_live_, is shown once and is stored only as a SHA-256 hash. Send it as a Bearer token to run agents and read your data.' },
+      { h: 'Signed webhooks', p: 'Save a public https endpoint (from the Starter plan). Every delivery is signed with HMAC-SHA256 in the x-qvmpxt-signature header. Events include quote.viewed, quote.accepted, quote.paid, quote.reminder and agent.message.' },
+      { h: 'Status', p: 'GET /api/health reports which services are live.', links: [['Pricing', '/pricing'], ['AI agents', '/ai-agents'], ['Open the console', '/#/stats', 1]] },
+    ],
+  },
+  privacy: { app: 'privacy', kind: 'legal', pri: '0.4', cf: 'yearly', lm: LEGAL_UPDATED, label: 'Privacy Policy', title: 'Privacy Policy | QVMPXT', desc: 'How QVMPXT collects, uses and protects your data, and the choices you have.', eyebrow: 'Legal', h1: 'Privacy Policy', lead: 'Last updated 9 November 2026.', sections: legalSections('privacy') },
+  terms: { app: 'terms', kind: 'legal', pri: '0.4', cf: 'yearly', lm: LEGAL_UPDATED, label: 'Terms of Service', title: 'Terms of Service | QVMPXT', desc: 'The terms for using QVMPXT: accounts, acceptable use, plans and billing, AI output and liability.', eyebrow: 'Legal', h1: 'Terms of Service', lead: 'Last updated 9 November 2026.', sections: legalSections('terms') },
+  refund: { app: 'refund', kind: 'legal', pri: '0.4', cf: 'yearly', lm: LEGAL_UPDATED, label: 'Refund Policy', title: 'Refund Policy | QVMPXT', desc: 'QVMPXT refund policy for subscriptions, usage, duplicate charges, marketplace and quotation payments.', eyebrow: 'Legal', h1: 'Refund Policy', lead: 'Last updated 9 November 2026.', sections: legalSections('refund') },
+};
+const FOOT_GROUPS = [
+  ['Company', ['meet-maruf', 'contact']],
+  ['Product', ['ai-agents', 'marketplace', 'quotations', 'payments', 'compliance-audits', 'security', 'developers']],
+  ['Explore', ['products', 'solutions', 'pricing']],
+  ['Legal', ['privacy', 'terms', 'refund']],
+];
+
+const jsonLd = (o) => '<script type="application/ld+json">' + JSON.stringify(o).replace(/</g, '\\u003c') + '</script>';
+const SEO_CSS = ':root{--bg:#03050c;--card:#0a1226;--tx:#f1f5f9;--mu:#94a3b8;--ln:rgba(148,163,184,.24);--cy:#00f0ff;--in:#6366f1}@media(prefers-color-scheme:light){:root{--bg:#f6f7fb;--card:#fff;--tx:#0b1020;--mu:#4b5568;--ln:#dfe3ee;--cy:#0369a1;--in:#4f46e5}}*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.65 system-ui,-apple-system,"Segoe UI","Noto Sans Bengali","Hind Siliguri","Nirmala UI",sans-serif;padding-top:env(safe-area-inset-top)}a{color:var(--cy)}.w{max-width:1000px;margin:auto;padding:0 16px}header{border-bottom:1px solid var(--ln);position:sticky;top:0;background:var(--bg);z-index:5}.hd{display:flex;align-items:center;gap:8px 18px;flex-wrap:wrap;padding:10px 0}.brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.14em;text-decoration:none;color:var(--tx)}.brand svg{width:34px;height:34px}nav.m{display:flex;gap:2px 16px;flex-wrap:wrap;margin-left:auto}nav.m a{color:var(--mu);text-decoration:none;padding:4px 2px;font-size:15px}nav.m a:hover,nav.m a[aria-current]{color:var(--cy)}.crumb{font-size:13px;color:var(--mu);margin-top:18px}.crumb a{color:var(--mu)}.eye{display:inline-block;color:var(--cy);font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;margin-top:14px}h1{font-size:clamp(28px,5vw,42px);line-height:1.15;margin:8px 0 12px}h2{font-size:24px;margin:38px 0 10px}h3{font-size:17px;margin:0 0 6px}.lead{color:var(--mu);font-size:18px;max-width:46em}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));margin-top:14px}.card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:16px}.card p{margin:0;color:var(--mu)}.card a{text-decoration:none}.price{font-size:26px;font-weight:800;margin:2px 0 6px}.price small{font-size:14px;font-weight:400;color:var(--mu)}ul{padding-left:20px}li{margin:5px 0}blockquote{margin:22px 0;padding:16px 20px;border-left:3px solid var(--cy);background:var(--card);border-radius:10px;font-size:20px}blockquote cite{display:block;font-size:14px;color:var(--mu);margin-top:8px;font-style:normal}.btn{display:inline-block;background:var(--in);color:#fff;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:700;margin:8px 8px 4px 0}.btn.alt{background:transparent;color:var(--cy);border:1px solid var(--cy)}.band{margin:44px 0 10px;padding:26px;border:1px solid var(--ln);border-radius:16px;background:var(--card);text-align:center}.band h2{margin-top:0}.bn{margin-top:26px;padding:14px 16px;border:1px dashed var(--ln);border-radius:12px;color:var(--mu)}footer{margin-top:50px;border-top:1px solid var(--ln);padding:26px 0 44px;color:var(--mu);font-size:14px}.fg{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}footer b{display:block;color:var(--tx);margin-bottom:6px}footer a{display:block;color:var(--mu);text-decoration:none;padding:2px 0}footer a:hover{color:var(--cy)}.cp{margin-top:22px}';
+
+function seoSection(s) {
+  const link = (l) => `<a class="btn${l[2] ? '' : ' alt'}" href="${esc(l[1])}"${/^https?:/.test(l[1]) ? ' target="_blank" rel="noopener noreferrer"' : ''}>${esc(l[0])}</a>`;
+  return '<section>' + (s.h ? `<h2>${esc(s.h)}</h2>` : '') + (s.p ? `<p${s.h ? '' : ' class="lead"'}>${esc(s.p)}</p>` : '')
+    + (s.paras ? s.paras.map((x) => `<p>${esc(x)}</p>`).join('') : '')
+    + (s.list ? `<ul>${s.list.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : '')
+    + (s.cards ? `<div class="grid">${s.cards.map((c) => `<article class="card"><h3>${c[2] ? `<a href="${esc(c[2])}"${/^https?:/.test(c[2]) ? ' target="_blank" rel="noopener noreferrer"' : ''}>${esc(c[0])}</a>` : esc(c[0])}</h3><p>${esc(c[1])}</p></article>`).join('')}</div>` : '')
+    + (s.quote ? `<blockquote>\u201c${esc(s.quote[0])}\u201d<cite>\u2014 ${esc(s.quote[1])}</cite></blockquote>` : '')
+    + (s.links ? `<p>${s.links.map(link).join('')}</p>` : '') + '</section>';
+}
+function pricingSections() {
+  const fm = (n) => Number(n).toLocaleString('en-US'), card = (name, price, sub, feats) => `<article class="card"><h3>${esc(name)}</h3><div class="price">${price}</div><p>${esc(sub)}</p><ul>${feats.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></article>`;
+  const free = card('Free', '$0 <small>/ month</small>', 'Try everything at no cost.', [`${FREE.runs} managed AI runs / month`, `${FREE.seats} team seats`, `${FREE.keys} API key`, 'Quote links, PDF and payments']);
+  const paid = Object.entries(PLANS).map(([id, p]) => card(id[0].toUpperCase() + id.slice(1), `$${p.price} <small>/ month</small>`, `or $${p.yearly} / year \u00b7 \u09f3${fm(p.bdt[0])} / month in BDT`, PLAN_FEATURES[id] || []));
+  return `<section><h2>Plans</h2><div class="grid">${free}${paid.join('')}</div></section>`
+    + seoSection({ h: 'How you can pay', list: ['Card (Stripe), in US dollars.', 'Bitcoin, including the Lightning Network.', 'bKash, Nagad and Rocket in Bangladeshi taka.'], links: [['Read the Refund Policy', '/refund'], ['Compare in the app', '/#/pay', 1]] });
+}
+
+// A complete, self-contained HTML document for a public page (no database access, so it stays fast and always works)
+function seoDoc(env, url, slug, pg, opts = {}) {
+  const base = baseOf(env, url), brand = brandOf(env), canon = slug ? `${base}/${slug}` : base + '/', crumbName = pg.label || pg.h1;
+  const robots = opts.noindex ? 'noindex,follow' : 'index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1';
+  const org = { '@type': 'Organization', '@id': base + '/#org', name: brand, url: base + '/', logo: { '@type': 'ImageObject', url: base + '/icon.svg' }, founder: { '@id': `${base}/meet-maruf#person` } };
+  const site = { '@type': 'WebSite', '@id': base + '/#website', url: base + '/', name: brand, alternateName: ['Qvmpxt', 'QVMPXT AI', 'QVMPXT Sovereign AI & Financial Ecosystem'], inLanguage: 'en', publisher: { '@id': base + '/#org' } };
+  const graph = [site, org];
+  if (!opts.noindex) {
+    const typ = { profile: 'ProfilePage', contact: 'ContactPage' }[pg.kind] || 'WebPage';
+    graph.push({ '@type': typ, '@id': canon + '#page', url: canon, name: pg.title, description: pg.desc, inLanguage: 'en', isPartOf: { '@id': base + '/#website' }, dateModified: pg.lm || SITE_UPDATED, breadcrumb: { '@id': canon + '#crumbs' }, ...(pg.kind === 'profile' ? { mainEntity: { '@id': `${base}/meet-maruf#person` } } : {}) });
+    graph.push({ '@type': 'BreadcrumbList', '@id': canon + '#crumbs', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: base + '/' }, { '@type': 'ListItem', position: 2, name: crumbName, item: canon }] });
+    if (pg.kind === 'profile') graph.push({ '@type': 'Person', '@id': `${base}/meet-maruf#person`, name: FOUNDER, alternateName: ['Maruf Chowdhury', 'Maruf', 'M Maruf Chowdhury'], jobTitle: FOUNDER_ROLE, description: pg.lead, url: canon, nationality: { '@type': 'Country', name: FOUNDER_COUNTRY }, worksFor: { '@id': base + '/#org' }, knowsAbout: ['Artificial intelligence', 'AI agents', 'Online payments', 'Automation', 'Quotations and invoicing'] });
+    if (pg.kind === 'pricing') graph.push({ '@type': 'SoftwareApplication', '@id': base + '/#app', name: brand, applicationCategory: 'BusinessApplication', operatingSystem: 'Web', url: base + '/', offers: [{ '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'USD', url: canon }, ...Object.entries(PLANS).map(([id, p]) => ({ '@type': 'Offer', name: id[0].toUpperCase() + id.slice(1), price: String(p.price), priceCurrency: 'USD', url: canon }))] });
+  }
+  const body = pg.sections === 'pricing' ? pricingSections() : (pg.sections || []).map(seoSection).join('');
+  const nav = NAV_LINKS.map(([h, l]) => `<a href="${h}"${h === '/' + slug && slug ? ' aria-current="page"' : ''}>${esc(l)}</a>`).join('');
+  const foot = FOOT_GROUPS.map(([t, ids]) => `<div><b>${esc(t)}</b>${ids.map((id) => `<a href="/${id}">${esc(SEO_PAGES[id].label)}</a>`).join('')}</div>`).join('');
+  const cta = opts.noindex ? '' : `<div class="band"><h2>Ready to send your first quote?</h2><p>Start on the free plan. Upgrade only when you grow.</p><a class="btn" href="${esc(base)}/#/${esc(pg.app || 'saas')}">Open ${esc(brand)}</a><a class="btn alt" href="/pricing">See pricing</a></div>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${esc(pg.title)}</title><meta name="description" content="${esc(pg.desc)}"><meta name="robots" content="${robots}">`
+    + (opts.noindex ? '' : `<link rel="canonical" href="${esc(canon)}"><link rel="alternate" hreflang="en" href="${esc(canon)}"><link rel="alternate" hreflang="x-default" href="${esc(canon)}">`)
+    + `<meta name="theme-color" content="#03050C"><meta property="og:site_name" content="${esc(brand)}"><meta property="og:type" content="${pg.kind === 'profile' ? 'profile' : 'website'}"><meta property="og:title" content="${esc(pg.title)}"><meta property="og:description" content="${esc(pg.desc)}"><meta property="og:url" content="${esc(canon)}"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="${esc(pg.title)}"><meta name="twitter:description" content="${esc(pg.desc)}">`
+    + `<link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="any"><link rel="manifest" href="/manifest.webmanifest"><style>${SEO_CSS}</style>${jsonLd({ '@context': 'https://schema.org', '@graph': graph })}</head><body>`
+    + `<header><div class="w hd"><a class="brand" href="/" aria-label="${esc(brand)} home">${ICON_SVG}<span>${esc(brand)}</span></a><nav class="m" aria-label="Main">${nav}</nav></div></header>`
+    + `<main class="w">${opts.noindex ? '' : `<p class="crumb"><a href="/">Home</a> \u203a ${esc(crumbName)}</p>`}<span class="eye">${esc(pg.eyebrow || '')}</span><h1>${esc(pg.h1)}</h1><p class="lead">${esc(pg.lead || '')}</p>${body}${pg.bn ? `<p class="bn" lang="bn">${esc(pg.bn)}</p>` : ''}${cta}</main>`
+    + `<footer><div class="w"><div class="fg">${foot}</div><p class="cp">\u00a9 2026 ${esc(brand)} Holding. ${esc(FOUNDER)}, ${esc(FOUNDER_ROLE)}. <a href="${esc(base)}/">Open the app</a></p></div></footer></body></html>`;
+}
+const seoHeaders = (type, extra) => ({ 'content-type': type, 'x-content-type-options': 'nosniff', 'referrer-policy': 'strict-origin-when-cross-origin', 'x-frame-options': 'SAMEORIGIN', ...extra });
+const seoRedirect = (url, path) => new Response(null, { status: 301, headers: { location: url.origin + path, 'cache-control': 'public, max-age=3600' } });
+const seoNotFound = (env, url) => new Response(seoDoc(env, url, '', { title: 'Page not found | ' + brandOf(env), desc: 'This page does not exist.', eyebrow: '404', h1: 'We could not find that page', lead: 'The link may be old or mistyped. Try one of these pages.', sections: [{ cards: Object.entries(SEO_PAGES).slice(0, 6).map(([id, p]) => [p.label, p.desc, '/' + id]) }] }, { noindex: true }), { status: 404, headers: seoHeaders('text/html; charset=utf-8', { 'cache-control': 'no-store', 'x-robots-tag': 'noindex' }) });
+
+// extra <head> tags and a crawlable site map for the home page (the home page itself is the app, so for guests it shows the sign-in screen)
+function seoHomeParts(env, url) {
+  const base = baseOf(env, url), brand = brandOf(env);
+  const head = `<link rel="canonical" href="${esc(base)}/"><link rel="alternate" hreflang="en" href="${esc(base)}/"><link rel="alternate" hreflang="x-default" href="${esc(base)}/"><meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1"><meta property="og:url" content="${esc(base)}/"><meta property="og:site_name" content="${esc(brand)}"><meta name="twitter:card" content="summary"><link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="any">`
+    + jsonLd({ '@context': 'https://schema.org', '@graph': [
+      { '@type': 'WebSite', '@id': base + '/#website', url: base + '/', name: brand, alternateName: ['Qvmpxt', 'QVMPXT AI', 'QVMPXT Sovereign AI & Financial Ecosystem'], inLanguage: 'en', publisher: { '@id': base + '/#org' } },
+      { '@type': 'Organization', '@id': base + '/#org', name: brand, url: base + '/', logo: { '@type': 'ImageObject', url: base + '/icon.svg' }, founder: { '@id': `${base}/meet-maruf#person` } },
+      { '@type': 'Person', '@id': `${base}/meet-maruf#person`, name: FOUNDER, alternateName: ['Maruf Chowdhury', 'Maruf'], jobTitle: FOUNDER_ROLE, url: base + '/meet-maruf', worksFor: { '@id': base + '/#org' } },
+      { '@type': 'SiteNavigationElement', name: Object.values(SEO_PAGES).map((p) => p.label), url: Object.keys(SEO_PAGES).map((id) => `${base}/${id}`) },
+    ] });
+  const hide = 'position:absolute!important;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0';
+  const block = `<div id="qv-seo" style="${hide}"><h1>${esc(brand)}: Send a quotation in 60 seconds, get paid</h1><p>${esc(SEO_DESC)}</p><p lang="bn">${esc(SEO_BN)}</p><nav aria-label="${esc(brand)} pages"><ul>${Object.entries(SEO_PAGES).map(([id, p]) => `<li><a href="/${id}">${esc(p.label)}</a>: ${esc(p.desc)}</li>`).join('')}</ul></nav></div><noscript><p>${esc(brand)} needs JavaScript to run the app. You can still read about it: <a href="/products">Products</a>, <a href="/pricing">Pricing</a>, <a href="/meet-maruf">Meet Maruf</a>.</p></noscript>`;
+  return { head, block };
+}
+function seoHome(env, url, r) {
+  const ct = r && r.headers.get('content-type') || '';
+  if (!r || !r.ok || !/text\/html/i.test(ct) || typeof HTMLRewriter === 'undefined') {
+    if (r && r.ok && /text\/html/i.test(ct)) return r;
+    // static assets missing: still serve a real home page instead of an error
+    return new Response(seoDoc(env, url, '', { title: brandOf(env) + ' | Send quotation in 60 seconds, get paid', desc: SEO_DESC, eyebrow: 'Sovereign AI & Financial Ecosystem', h1: 'Smart Solutions, Limitless Possibilities: Your Complete AI Ecosystem', lead: SEO_DESC, bn: SEO_BN, app: 'saas', kind: 'page', label: 'Home', sections: [{ cards: Object.entries(SEO_PAGES).map(([id, p]) => [p.label, p.desc, '/' + id]) }] }), { status: 200, headers: seoHeaders('text/html; charset=utf-8', { 'cache-control': 'public, max-age=300' }) });
+  }
+  const { head, block } = seoHomeParts(env, url);
+  const out = new HTMLRewriter().on('head', { element(e) { e.append(head, { html: true }); } }).on('body', { element(e) { e.append(block, { html: true }); } }).transform(r);
+  const h = new Headers(r.headers); h.delete('content-length'); h.set('x-content-type-options', 'nosniff'); h.set('referrer-policy', 'strict-origin-when-cross-origin'); h.set('x-frame-options', 'SAMEORIGIN'); h.set('x-robots-tag', 'index, follow');
+  return new Response(out.body, { status: r.status, headers: h });
+}
+function seoSitemap(env, url) {
+  const base = baseOf(env, url), u = [['/', SITE_UPDATED, 'weekly', '1.0'], ...Object.entries(SEO_PAGES).map(([id, p]) => ['/' + id, p.lm || SITE_UPDATED, p.cf || 'monthly', p.pri || '0.6'])];
+  return new Response('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + u.map(([path, lm, cf, pr]) => `  <url><loc>${esc(base + path)}</loc><lastmod>${lm}</lastmod><changefreq>${cf}</changefreq><priority>${pr}</priority></url>`).join('\n') + '\n</urlset>\n', { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+}
+// routes that need no database: sitemap, robots, favicon, clean-URL public pages and their redirects
+function seoRoute(req, env, url) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return null;
+  const p = url.pathname, base = baseOf(env, url);
+  if (p === '/sitemap.xml') return seoSitemap(env, url);
+  if (p === '/robots.txt') return new Response(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /s/\nDisallow: /*?print=\n\nSitemap: ${base}/sitemap.xml\n`, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+  if (p === '/favicon.ico') return seoRedirect(url, '/icon.svg');
+  if (p === '/index.html') return seoRedirect(url, '/');
+  const clean = p.length > 1 ? p.replace(/\/+$/, '').toLowerCase() : p, slug = clean.slice(1), own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  if (!slug || slug.includes('/')) return null;
+  if (own(SEO_ALIASES, slug)) return seoRedirect(url, '/' + SEO_ALIASES[slug]);
+  if (!own(SEO_PAGES, slug)) return null;
+  const pg = SEO_PAGES[slug];
+  if (clean !== p) return seoRedirect(url, '/' + slug);
+  return new Response(req.method === 'HEAD' ? null : seoDoc(env, url, slug, pg), { headers: seoHeaders('text/html; charset=utf-8', { 'cache-control': 'public, max-age=600, s-maxage=3600, stale-while-revalidate=86400', 'x-robots-tag': 'index, follow', link: `<${base}/${slug}>; rel="canonical"` }) });
 }
 
 function cors(env, req, res) {
@@ -1541,10 +1845,13 @@ export default {
       const isApi = p.startsWith('/api/');
       if (isApi || p.startsWith('/s/')) { await ensureSchema(env); await ensureTail(env); background(ctx, maybeSweep(env, baseOf(env, url), brandOf(env))); }
       if (isApi) return cors(env, req, await api(req, env, ctx, url));
+      const sr = seoRoute(req, env, url); if (sr) return sr;
       const pg = await pages(req, env, ctx, url); if (pg) return pg;
-      if (!env.ASSETS) return html('<h1>Static assets are not bound</h1>', 500);
+      if (!env.ASSETS) return p === '/' ? seoHome(env, url, null) : seoNotFound(env, url);
       let r = await env.ASSETS.fetch(req);
-      if (r.status === 404 && (req.headers.get('accept') || '').includes('text/html')) { r = await env.ASSETS.fetch(new Request(new URL('/', url), req)); if (!r.ok) r = await env.ASSETS.fetch(new Request(new URL('/qvmpxt.html', url), req)); }
+      if (p === '/') { if (!r.ok) { const r2 = await env.ASSETS.fetch(new Request(new URL('/qvmpxt.html', url), req)).catch(() => null); if (r2 && r2.ok) r = r2; } return seoHome(env, url, r); }
+      // unknown page addresses return a real 404 (not the home page with status 200, which Google counts as a soft 404)
+      if (r.status === 404 && !/\.[a-z0-9]{1,8}$/i.test(p)) return seoNotFound(env, url);
       const h = new Headers(r.headers); h.set('x-content-type-options', 'nosniff'); h.set('referrer-policy', 'strict-origin-when-cross-origin'); h.set('x-frame-options', 'SAMEORIGIN');
       return new Response(r.body, { status: r.status, headers: h });
     } catch (e) {
