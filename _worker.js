@@ -58,6 +58,9 @@ const langOk = (s) => /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$/.test(s || '');
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const brandOf = (env) => String(env.BRAND || DEFAULT_BRAND).toUpperCase();
 const baseOf = (env, url) => (env.PUBLIC_URL || url.origin).replace(/\/+$/, '');
+// SEO base: PUBLIC_URL only when its host matches the host being requested (ignoring www), so the sitemap, canonicals and robots.txt
+// never point at a different host than the one Google fetched (Search Console rejects sitemap URLs on another host)
+const seoBase = (env, url) => { const b = baseOf(env, url); try { const h = (x) => new URL(x).host.replace(/^www\./i, '').toLowerCase(); return h(b) === h(url.origin) ? b.replace(/^http:/i, 'https:') : url.origin; } catch { return url.origin; } };
 const intParam = (v, def, min, max) => { const n = parseInt(v, 10); return Number.isFinite(n) ? clamp(n, min, max) : def; };
 const parse = (s, d) => { try { return JSON.parse(s) ?? d; } catch { return d; } };
 const ub = (s, max = 20000) => { s = String(s || ''); if (!s || s.length > max || !/^[A-Za-z0-9_-]+={0,2}$/.test(s)) throw httpErr(400, 'Invalid encoding'); try { return unb64u(s); } catch { throw httpErr(400, 'Invalid encoding'); } };
@@ -1530,7 +1533,7 @@ const FOUNDER = 'M Maruf Chowdhury', FOUNDER_ROLE = 'Founder & Chief Architect, 
 const FOUNDER_PHONE = '+8801347272307', FOUNDER_WA = '8801347272307', FOUNDER_EMAIL = 'marufchowdhury579@gmail.com';
 const SEO_DESC = 'QVMPXT: send a quotation in 60 seconds and get paid. AI agents, quote links, compliance audits and an agent marketplace. Pay by card, Bitcoin or bKash / Nagad / Rocket.';
 const SEO_BN = 'QVMPXT: ৬০ সেকেন্ডে কোটেশন পাঠান, পেমেন্ট নিন। এআই এজেন্ট, কোটেশন লিংক, কমপ্লায়েন্স অডিট ও এজেন্ট মার্কেটপ্লেস। কার্ড, বিটকয়েন এবং বিকাশ / নগদ / রকেটে পেমেন্ট গ্রহণ করুন।';
-const NAV_LINKS = [['/', 'Home'], ['/meet-maruf', 'Meet Maruf'], ['/products', 'Products'], ['/solutions', 'Solutions'], ['/pricing', 'Pricing'], ['/contact', 'Contact']];
+const NAV_LINKS = [['/', 'Home'], ['/meet-maruf', 'Connect with MARUF'], ['/products', 'Products'], ['/solutions', 'Solutions'], ['/pricing', 'Pricing'], ['/contact', 'Contact']];
 const PLAN_FEATURES = {
   starter: ['Everything in Free', '300 agent runs / month', 'Priority run queue', '5 team seats with role-based access', '3 API keys', 'Webhook for run events'],
   growth: ['Everything in Starter', '2,000 agent runs / month', '15 team seats with role-based access', '10 API keys'],
@@ -1543,7 +1546,7 @@ const legalSections = (k) => LEGAL_PAGES[k][1].map(([h, p]) => ({ h, p }));
 
 const SEO_PAGES = {
   'meet-maruf': {
-    app: 'maruf', kind: 'profile', pri: '0.9', cf: 'monthly', lm: SITE_UPDATED, label: 'Meet Maruf',
+    app: 'maruf', kind: 'profile', pri: '0.9', cf: 'monthly', lm: SITE_UPDATED, label: 'Connect with MARUF',
     title: 'Meet Maruf | M Maruf Chowdhury, Founder of QVMPXT',
     desc: 'Meet M Maruf Chowdhury (Maruf), Founder & Chief Architect of QVMPXT from Bangladesh. His vision, mission, skills and how to contact him.',
     eyebrow: 'Meet the founder', h1: FOUNDER + ': Founder & Chief Architect of QVMPXT',
@@ -1751,7 +1754,7 @@ function pricingSections() {
 
 // A complete, self-contained HTML document for a public page (no database access, so it stays fast and always works)
 function seoDoc(env, url, slug, pg, opts = {}) {
-  const base = baseOf(env, url), brand = brandOf(env), canon = slug ? `${base}/${slug}` : base + '/', crumbName = pg.label || pg.h1;
+  const base = seoBase(env, url), brand = brandOf(env), canon = slug ? `${base}/${slug}` : base + '/', crumbName = pg.label || pg.h1;
   const robots = opts.noindex ? 'noindex,follow' : 'index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1';
   const org = { '@type': 'Organization', '@id': base + '/#org', name: brand, url: base + '/', logo: { '@type': 'ImageObject', url: base + '/icon.svg' }, founder: { '@id': `${base}/meet-maruf#person` } };
   const site = { '@type': 'WebSite', '@id': base + '/#website', url: base + '/', name: brand, alternateName: ['Qvmpxt', 'QVMPXT AI', 'QVMPXT Sovereign AI & Financial Ecosystem'], inLanguage: 'en', publisher: { '@id': base + '/#org' } };
@@ -1770,7 +1773,7 @@ function seoDoc(env, url, slug, pg, opts = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${esc(pg.title)}</title><meta name="description" content="${esc(pg.desc)}"><meta name="robots" content="${robots}">`
     + (opts.noindex ? '' : `<link rel="canonical" href="${esc(canon)}"><link rel="alternate" hreflang="en" href="${esc(canon)}"><link rel="alternate" hreflang="x-default" href="${esc(canon)}">`)
     + `<meta name="theme-color" content="#03050C"><meta property="og:site_name" content="${esc(brand)}"><meta property="og:type" content="${pg.kind === 'profile' ? 'profile' : 'website'}"><meta property="og:title" content="${esc(pg.title)}"><meta property="og:description" content="${esc(pg.desc)}"><meta property="og:url" content="${esc(canon)}"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="${esc(pg.title)}"><meta name="twitter:description" content="${esc(pg.desc)}">`
-    + `<link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="any"><link rel="manifest" href="/manifest.webmanifest"><style>${SEO_CSS}</style>${jsonLd({ '@context': 'https://schema.org', '@graph': graph })}</head><body>`
+    + `<link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="any"><link rel="manifest" href="/manifest.webmanifest"><link rel="sitemap" type="application/xml" href="/sitemap.xml"><style>${SEO_CSS}</style>${jsonLd({ '@context': 'https://schema.org', '@graph': graph })}</head><body>`
     + `<header><div class="w hd"><a class="brand" href="/" aria-label="${esc(brand)} home">${ICON_SVG}<span>${esc(brand)}</span></a><nav class="m" aria-label="Main">${nav}</nav></div></header>`
     + `<main class="w">${opts.noindex ? '' : `<p class="crumb"><a href="/">Home</a> \u203a ${esc(crumbName)}</p>`}<span class="eye">${esc(pg.eyebrow || '')}</span><h1>${esc(pg.h1)}</h1><p class="lead">${esc(pg.lead || '')}</p>${body}${pg.bn ? `<p class="bn" lang="bn">${esc(pg.bn)}</p>` : ''}${cta}</main>`
     + `<footer><div class="w"><div class="fg">${foot}</div><p class="cp">\u00a9 2026 ${esc(brand)} Holding. ${esc(FOUNDER)}, ${esc(FOUNDER_ROLE)}. <a href="${esc(base)}/">Open the app</a></p></div></footer></body></html>`;
@@ -1781,8 +1784,8 @@ const seoNotFound = (env, url) => new Response(seoDoc(env, url, '', { title: 'Pa
 
 // extra <head> tags and a crawlable site map for the home page (the home page itself is the app, so for guests it shows the sign-in screen)
 function seoHomeParts(env, url) {
-  const base = baseOf(env, url), brand = brandOf(env);
-  const head = `<link rel="canonical" href="${esc(base)}/"><link rel="alternate" hreflang="en" href="${esc(base)}/"><link rel="alternate" hreflang="x-default" href="${esc(base)}/"><meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1"><meta property="og:url" content="${esc(base)}/"><meta property="og:site_name" content="${esc(brand)}"><meta name="twitter:card" content="summary"><link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="any">`
+  const base = seoBase(env, url), brand = brandOf(env);
+  const head = `<link rel="canonical" href="${esc(base)}/"><link rel="alternate" hreflang="en" href="${esc(base)}/"><link rel="alternate" hreflang="x-default" href="${esc(base)}/"><meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1"><meta property="og:url" content="${esc(base)}/"><meta property="og:site_name" content="${esc(brand)}"><meta name="twitter:card" content="summary"><link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="any"><link rel="sitemap" type="application/xml" href="/sitemap.xml">`
     + jsonLd({ '@context': 'https://schema.org', '@graph': [
       { '@type': 'WebSite', '@id': base + '/#website', url: base + '/', name: brand, alternateName: ['Qvmpxt', 'QVMPXT AI', 'QVMPXT Sovereign AI & Financial Ecosystem'], inLanguage: 'en', publisher: { '@id': base + '/#org' } },
       { '@type': 'Organization', '@id': base + '/#org', name: brand, url: base + '/', logo: { '@type': 'ImageObject', url: base + '/icon.svg' }, founder: { '@id': `${base}/meet-maruf#person` } },
@@ -1790,7 +1793,7 @@ function seoHomeParts(env, url) {
       { '@type': 'SiteNavigationElement', name: Object.values(SEO_PAGES).map((p) => p.label), url: Object.keys(SEO_PAGES).map((id) => `${base}/${id}`) },
     ] });
   const hide = 'position:absolute!important;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0';
-  const block = `<div id="qv-seo" style="${hide}"><h1>${esc(brand)}: Send a quotation in 60 seconds, get paid</h1><p>${esc(SEO_DESC)}</p><p lang="bn">${esc(SEO_BN)}</p><nav aria-label="${esc(brand)} pages"><ul>${Object.entries(SEO_PAGES).map(([id, p]) => `<li><a href="/${id}">${esc(p.label)}</a>: ${esc(p.desc)}</li>`).join('')}</ul></nav></div><noscript><p>${esc(brand)} needs JavaScript to run the app. You can still read about it: <a href="/products">Products</a>, <a href="/pricing">Pricing</a>, <a href="/meet-maruf">Meet Maruf</a>.</p></noscript>`;
+  const block = `<div id="qv-seo" style="${hide}"><h1>${esc(brand)}: Send a quotation in 60 seconds, get paid</h1><p>${esc(SEO_DESC)}</p><p lang="bn">${esc(SEO_BN)}</p><nav aria-label="${esc(brand)} pages"><ul>${Object.entries(SEO_PAGES).map(([id, p]) => `<li><a href="/${id}">${esc(p.label)}</a>: ${esc(p.desc)}</li>`).join('')}</ul></nav></div><noscript><p>${esc(brand)} needs JavaScript to run the app. You can still read about it: <a href="/products">Products</a>, <a href="/pricing">Pricing</a>, <a href="/meet-maruf">Connect with MARUF</a>.</p></noscript>`;
   return { head, block };
 }
 function seoHome(env, url, r) {
@@ -1805,16 +1808,21 @@ function seoHome(env, url, r) {
   const h = new Headers(r.headers); h.delete('content-length'); h.set('x-content-type-options', 'nosniff'); h.set('referrer-policy', 'strict-origin-when-cross-origin'); h.set('x-frame-options', 'SAMEORIGIN'); h.set('x-robots-tag', 'index, follow');
   return new Response(out.body, { status: r.status, headers: h });
 }
-function seoSitemap(env, url) {
-  const base = baseOf(env, url), u = [['/', SITE_UPDATED, 'weekly', '1.0'], ...Object.entries(SEO_PAGES).map(([id, p]) => ['/' + id, p.lm || SITE_UPDATED, p.cf || 'monthly', p.pri || '0.6'])];
-  return new Response('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + u.map(([path, lm, cf, pr]) => `  <url><loc>${esc(base + path)}</loc><lastmod>${lm}</lastmod><changefreq>${cf}</changefreq><priority>${pr}</priority></url>`).join('\n') + '\n</urlset>\n', { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+function seoSitemap(env, url, head) {
+  const base = seoBase(env, url), seen = new Set();
+  // one <url> per real, indexable page, each with its own absolute clean URL (no hash routes, no redirects, no duplicates)
+  const u = [['/', SITE_UPDATED, 'weekly', '1.0'], ...Object.entries(SEO_PAGES).map(([id, p]) => ['/' + id, p.lm || SITE_UPDATED, p.cf || 'monthly', p.pri || '0.6'])]
+    .filter(([path]) => !seen.has(path) && seen.add(path));
+  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + u.map(([path, lm, cf, pr]) => `  <url><loc>${esc(base + path)}</loc><lastmod>${lm}</lastmod><changefreq>${cf}</changefreq><priority>${pr}</priority></url>`).join('\n') + '\n</urlset>\n';
+  return new Response(head ? null : xml, { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600', 'x-content-type-options': 'nosniff', 'access-control-allow-origin': '*' } });
 }
 // routes that need no database: sitemap, robots, favicon, clean-URL public pages and their redirects
 function seoRoute(req, env, url) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return null;
-  const p = url.pathname, base = baseOf(env, url);
-  if (p === '/sitemap.xml') return seoSitemap(env, url);
-  if (p === '/robots.txt') return new Response(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /s/\nDisallow: /*?print=\n\nSitemap: ${base}/sitemap.xml\n`, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+  const p = url.pathname, base = seoBase(env, url);
+  if (p === '/sitemap.xml') return seoSitemap(env, url, req.method === 'HEAD');
+  if (/^\/(sitemap[_-]?index|sitemaps?|sitemap\.xml\/)$/i.test(p) || (p !== '/sitemap.xml' && p.toLowerCase() === '/sitemap.xml')) return seoRedirect(url, '/sitemap.xml');
+  if (p === '/robots.txt') return new Response(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /s/\nDisallow: /*?print=\n\nSitemap: ${base}/sitemap.xml\n`, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600', 'x-content-type-options': 'nosniff' } });
   if (p === '/favicon.ico') return seoRedirect(url, '/icon.svg');
   if (p === '/index.html') return seoRedirect(url, '/');
   const clean = p.length > 1 ? p.replace(/\/+$/, '').toLowerCase() : p, slug = clean.slice(1), own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
