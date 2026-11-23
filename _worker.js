@@ -31,6 +31,7 @@ const RATE_LIMITS = { free: 30, starter: 60, growth: 300, enterprise: 1200 };
 // managed AI runs per UTC day and per workspace (runs and estimated USD cost), on top of the monthly quota and the per-minute rate limit
 const DAILY = { free: { runs: 15, usd: 0.1 }, starter: { runs: 80, usd: 1 }, growth: { runs: 400, usd: 6 }, enterprise: { runs: 2500, usd: 40 } };
 const REF_BONUS = 25, REF_NEW = 10, BONUS_CAP = 500; // bonus managed runs: referrer, new user, lifetime cap
+const REF_PCT = 20, PAYOUT_MIN = { USD: 10, BDT: 1000 }, PAYOUT_METHODS = ['bkash', 'nagad', 'rocket', 'btc', 'bank']; // referral cash commission on the referred user's first paid plan; minimum payout per currency
 const COMMISSION_PCT = 15, MOBILE = ['bkash', 'nagad', 'rocket'], CURRENCIES = ['USD', 'BDT'], ROLES = ['Admin', 'Editor', 'Viewer'];
 const TOKEN_TTL = 864e5, PBKDF2_ITER = 100000, RATE_PER_1K = 0.002, HISTORY_PER_USER = 300;
 const HISTORY_TYPES = ['run', 'quote', 'invoice', 'audit', 'ocr', 'voice', 'note'], CLIENT_TYPES = ['voice', 'note'];
@@ -101,6 +102,8 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS ix_ws_docs_at ON ws_docs(owner,at)`,
   // immutable audit trail: append-only, hash-chained per workspace
   `CREATE TABLE IF NOT EXISTS audit_log(seq INTEGER PRIMARY KEY AUTOINCREMENT,owner TEXT,at INTEGER,actor TEXT,action TEXT,target TEXT,prev TEXT,hash TEXT)`,
+  `CREATE TABLE IF NOT EXISTS payouts(id TEXT PRIMARY KEY,email TEXT,amount REAL,currency TEXT DEFAULT 'USD',method TEXT,account TEXT,status TEXT DEFAULT 'pending',at INTEGER,paid_at INTEGER DEFAULT 0)`,
+  `CREATE TABLE IF NOT EXISTS ref_earn(id TEXT PRIMARY KEY,referrer TEXT,referred TEXT UNIQUE,pay_id TEXT,amount REAL,currency TEXT,at INTEGER)`,
   `CREATE INDEX IF NOT EXISTS ix_audit_owner ON audit_log(owner,seq)`,
   `CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT,'audit_log is append-only'); END`,
   `CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT,'audit_log is append-only'); END`,
@@ -493,6 +496,18 @@ async function grantReferral(env, ctx, email) {
     const rf = await one(env, 'SELECT name FROM users WHERE email=?', u.ref_by);
     await sendMail(env, u.ref_by, `You earned ${REF_BONUS} bonus runs on ${brandOf(env)}`, mailHtml(brandOf(env), 'Referral bonus', `Hi ${(rf && rf.name) || ''}, someone you referred just verified their account. We added ${REF_BONUS} bonus managed runs to your workspace.`, '', ''));
   } catch (e) { await sentry(env, e, { where: 'referral' }); }
+}
+// cash commission for the referrer, once, on the referred user's first approved plan payment
+async function creditRef(env, ctx, rec) {
+  try {
+    const u = await one(env, 'SELECT email,name,ref_by FROM users WHERE email=?', rec.payer);
+    if (!u || !u.ref_by || !(rec.amount > 0) || !CURRENCIES.includes(rec.currency)) return;
+    const amt = Math.round(rec.amount * REF_PCT) / 100;
+    const r = await run(env, 'INSERT OR IGNORE INTO ref_earn(id,referrer,referred,pay_id,amount,currency,at) VALUES(?,?,?,?,?,?,?)', rid(6), u.ref_by, u.email, rec.id, amt, rec.currency, Date.now());
+    if (!r.meta || !r.meta.changes) return;
+    await audit(env, u.ref_by, 'system', 'referral.commission', `${u.email} paid: ${amt} ${rec.currency}`);
+    eventCard(env, ctx, '💸', 'REFERRAL COMMISSION', [['🤝', 'Referrer', u.ref_by], ['👤', 'Paid user', u.email], ['💰', 'Commission', `${amt} ${rec.currency} (${REF_PCT}%)`]]);
+  } catch (e) { await sentry(env, e, { where: 'ref-commission' }); }
 }
 async function ensureRefCode(env, u) {
   if (u.ref_code) return u.ref_code;
@@ -1199,7 +1214,7 @@ async function api(req, env, ctx, url) {
     if (!rec) return fail(404, 'Payment not found'); if (rec.status !== 'pending') return fail(409, 'Already ' + rec.status);
     if (rec.kind === 'plan') needOwner(u); else { await admin(u); if (rec.email !== u.ws) return fail(403, 'Not your payment to review'); }
     if (mm[1] === 'approve') {
-      if (rec.kind === 'plan') await run(env, 'UPDATE users SET plan=?,plan_until=? WHERE email=?', rec.plan, Date.now() + (rec.cycle === 'yearly' ? 366 : 31) * 864e5, rec.payer);
+      if (rec.kind === 'plan') { await run(env, 'UPDATE users SET plan=?,plan_until=? WHERE email=?', rec.plan, Date.now() + (rec.cycle === 'yearly' ? 366 : 31) * 864e5, rec.payer); await creditRef(env, ctx, rec); }
       else { await run(env, "UPDATE quotes SET status='paid',paid_at=? WHERE id=?", Date.now(), rec.quote_id); await notifyOwnerHook(env, ctx, rec.email, 'quote.paid', { quote: rec.quote_id, provider: rec.provider }); }
     }
     await run(env, 'UPDATE payments SET status=?,reviewed_by=? WHERE id=?', mm[1] === 'approve' ? 'approved' : 'rejected', u.email, rec.id);
@@ -1428,8 +1443,47 @@ async function api(req, env, ctx, url) {
     await audit(env, u.ws, u.email, 'billing.sandbox', `${plan}/${cycle}`); return json({ plan, sandbox: true });
   }
 
+  // ----- earnings wallet: approved marketplace sales + referral commissions - payouts; sellers request, the founder pays -----
+  const wallet = async (email) => {
+    const w = { USD: { sales: 0, ref: 0, out: 0 }, BDT: { sales: 0, ref: 0, out: 0 } };
+    w.USD.sales = +(((await one(env, "SELECT COALESCE(SUM(net),0) s FROM orders WHERE seller=? AND status='approved'", email)) || {}).s || 0).toFixed(2);
+    for (const r of await all(env, 'SELECT currency c,COALESCE(SUM(amount),0) s FROM ref_earn WHERE referrer=? GROUP BY currency', email)) if (w[r.c]) w[r.c].ref = +r.s.toFixed(2);
+    for (const r of await all(env, "SELECT currency c,COALESCE(SUM(amount),0) s FROM payouts WHERE email=? AND status IN ('pending','paid') GROUP BY currency", email)) if (w[r.c]) w[r.c].out = +r.s.toFixed(2);
+    for (const c of CURRENCIES) w[c].available = +(w[c].sales + w[c].ref - w[c].out).toFixed(2);
+    return w;
+  };
+  if (p === '/api/earnings' && m === 'GET') {
+    const u = await needUser();
+    return json({ wallet: await wallet(u.email), refPct: REF_PCT, min: PAYOUT_MIN, methods: PAYOUT_METHODS, payouts: await all(env, 'SELECT id,amount,currency,method,status,at,paid_at FROM payouts WHERE email=? ORDER BY at DESC LIMIT 50', u.email), refs: await all(env, 'SELECT referred,amount,currency,at FROM ref_earn WHERE referrer=? ORDER BY at DESC LIMIT 30', u.email) });
+  }
+  if (p === '/api/payouts' && m === 'POST') {
+    const u = await needUser(); await write(u); needVerified(u); if (limited(req, 'payout', 5, 3600000)) return fail(429, 'Too many requests. Try again later.');
+    const b = await readBody(4000), cur = String(b.currency || 'USD').toUpperCase(), method = String(b.method || '').toLowerCase(), acct = String(b.account || '').trim().slice(0, 120), amt = Math.round((+b.amount || 0) * 100) / 100;
+    if (!CURRENCIES.includes(cur)) return fail(400, 'Unknown currency'); if (!PAYOUT_METHODS.includes(method)) return fail(400, 'Unknown payout method'); if (acct.length < 5) return fail(400, 'Enter your payout number or account');
+    if (!(amt >= PAYOUT_MIN[cur])) return fail(400, `Minimum payout is ${PAYOUT_MIN[cur]} ${cur}`);
+    if ((await one(env, "SELECT COUNT(*) n FROM payouts WHERE email=? AND status='pending'", u.email)).n >= 3) return fail(409, 'You already have 3 pending requests. Wait until they are paid.');
+    const w = await wallet(u.email); if (amt > w[cur].available) return fail(400, `You can request up to ${w[cur].available} ${cur}`);
+    const id = 'PO' + rid(4).toUpperCase(); await run(env, "INSERT INTO payouts(id,email,amount,currency,method,account,status,at) VALUES(?,?,?,?,?,?,'pending',?)", id, u.email, amt, cur, method, acct, Date.now());
+    await audit(env, u.ws, u.email, 'payout.request', `${id} ${amt} ${cur}`);
+    eventCard(env, ctx, '🏦', 'PAYOUT REQUEST', [['🆔', 'Request', id], ['📧', 'Seller', u.email], ['💰', 'Amount', `${amt} ${cur}`], ['📲', 'Method', method], ['🔢', 'Account', acct]], req);
+    return json({ id, status: 'pending', message: 'Payout request received. The Founder will send the money and mark it paid.' });
+  }
+  if (p === '/api/payouts/queue' && m === 'GET') {
+    const u = await needUser(); needOwner(u); return json(await all(env, "SELECT id,email,amount,currency,method,account,status,at FROM payouts WHERE status='pending' ORDER BY at ASC LIMIT 100"));
+  }
+  if ((mm = p.match(/^\/api\/payouts\/(PO[\w]{3,20})\/(paid|reject)$/)) && m === 'POST') {
+    const u = await needUser(); needOwner(u); const o = await one(env, 'SELECT * FROM payouts WHERE id=?', mm[1]); if (!o) return fail(404, 'Request not found'); if (o.status !== 'pending') return fail(409, 'Already ' + o.status);
+    const st = mm[2] === 'paid' ? 'paid' : 'rejected'; await run(env, 'UPDATE payouts SET status=?,paid_at=? WHERE id=?', st, st === 'paid' ? Date.now() : 0, o.id);
+    await audit(env, u.ws, u.email, 'payout.' + st, o.id);
+    if (st === 'paid') background(ctx, sendMail(env, o.email, `Your ${brandOf(env)} payout was sent`, mailHtml(brandOf(env), 'Payout sent', `We sent ${o.amount} ${o.currency} to your ${o.method} account (${o.id}).`, '', '')));
+    return json({ id: o.id, status: st });
+  }
+
   // ----- marketplace and orders (15% platform commission; the founder confirms payment, then the agent is delivered) -----
-  if (p === '/api/market' && m === 'GET') return json((await all(env, 'SELECT id,by,name,task,tools,buy,rent,sales,created FROM market ORDER BY sales DESC,created DESC LIMIT 100')).map((r) => ({ ...r, tools: parse(r.tools, []) })));
+  if (p === '/api/market' && m === 'GET') { const me = await maybeUser(); return json((await all(env, 'SELECT id,by,email,name,task,tools,buy,rent,sales,created FROM market ORDER BY sales DESC,created DESC LIMIT 100')).map(({ email, ...r }) => ({ ...r, mine: !!me && email === me.email, tools: parse(r.tools, []) }))); }
+  if (p === '/api/market/orders/queue' && m === 'GET') {
+    const u = await needUser(); needOwner(u); return json(await all(env, "SELECT o.id,o.item,o.mode,o.buyer,o.seller,o.gross,o.provider,o.txid,o.at,m.name FROM orders o LEFT JOIN market m ON m.id=o.item WHERE o.status='pending' ORDER BY o.at ASC LIMIT 100"));
+  }
   if (p === '/api/market' && m === 'POST') {
     const u = await needUser(); await write(u); needVerified(u); const b = await readBody(10000);
     const name = String(b.name || '').trim().slice(0, 60), task = String(b.task || '').trim().slice(0, 2000), buy = clamp(+b.buy || 0, 0, 1e5), rent = clamp(+b.rent || 0, 0, 1e5);
